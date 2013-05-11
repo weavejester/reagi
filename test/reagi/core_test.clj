@@ -1,7 +1,10 @@
 (ns reagi.core-test
-  (:require [clojure.test :refer :all]
-            [reagi.core :refer :all]))
+  (:use clojure.test
+        reagi.core))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(deftest test-behavior
+  (let [a (atom 1)
+        b (behavior (+ 1 @a))]
+    (is (= @b 2))
+    (swap! a inc)
+    (is (= @b 3))))

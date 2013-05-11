@@ -1,6 +1,9 @@
 (ns reagi.core)
 
-(defn foo
-  "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+(defn behavior-call [f]
+  (reify
+    clojure.lang.IDeref
+    (deref [_] (f))))
+
+(defmacro behavior [& form]
+  `(behavior-call (fn [] ~@form)))
