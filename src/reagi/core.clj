@@ -1,4 +1,5 @@
-(ns reagi.core)
+(ns reagi.core
+  (:refer-clojure :exclude [reduce map filter merge]))
 
 (def ^:dynamic *behaviors* nil)
 
@@ -19,3 +20,23 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
+(defrecord EventStream [observers head]
+  clojure.lang.IDeref
+  (deref [_] @head))
+
+(defn event-stream [init]
+  (EventStream. (java.util.WeakHashMap.) (atom init)))
+
+(defn push! [stream value]
+  (reset! (:head stream) value)
+  (doseq [[observer _] (:observers stream)]
+    (observer value)))
+
+(defn- subscribe [stream f]
+  (.put (:observers stream) f true))
+
+(defn reduce
+  [f init stream]
+  (let [reduced (event-stream init)]
+    (subscribe stream #(push! reduced (f @(:head reduced) %)))
+    reduced))
