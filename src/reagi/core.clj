@@ -1,5 +1,5 @@
 (ns reagi.core
-  (:refer-clojure :exclude [mapcat map filter]))
+  (:refer-clojure :exclude [mapcat map filter merge]))
 
 (def ^:dynamic *behaviors* nil)
 
@@ -66,3 +66,11 @@
   "Filter a stream by a predicate."
   [pred stream]
   (mapcat #(if (pred %) (list %)) stream))
+
+(defn merge
+  "Merge multiple streams into one."
+  [& streams]
+  (let [stream* (event-stream)]
+    (doseq [stream streams]
+      (subscribe stream #(push! stream* %)))
+    stream*))
