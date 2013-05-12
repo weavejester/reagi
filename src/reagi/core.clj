@@ -44,7 +44,9 @@
     (push! stream m)))
 
 (defn event-stream
-  "Create a new event stream with an optional initial value."
+  "Create a new event stream with an optional initial value. Calling deref on
+  an event stream will return the last value pushed into the event stream, or
+  the init value if no values have been pushed."
   ([] (event-stream nil))
   ([init] (EventStream. (java.util.WeakHashMap.) (atom init))))
 
