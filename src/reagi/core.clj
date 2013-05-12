@@ -1,5 +1,5 @@
 (ns reagi.core
-  (:refer-clojure :exclude [mapcat map filter merge]))
+  (:refer-clojure :exclude [mapcat map filter merge reduce]))
 
 (def ^:dynamic *behaviors* nil)
 
@@ -92,4 +92,12 @@
   (let [stream* (event-stream)]
     (doseq [stream streams]
       (subscribe stream #(push! stream* %)))
+    (freeze stream*)))
+
+(defn reduce
+  "Reduce a stream with a function."
+  [f init stream]
+  (let [acc     (atom init)
+        stream* (event-stream)]
+    (subscribe stream #(push! stream* (swap! acc f %)))
     (freeze stream*)))
