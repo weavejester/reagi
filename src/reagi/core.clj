@@ -3,18 +3,20 @@
 
 (def ^:dynamic *behaviors* nil)
 
+(deftype Behavior [f]
+  clojure.lang.IDeref
+  (deref [_]
+    (binding [*behaviors* (or *behaviors* (memoize #(%)))]
+      (*behaviors* f))))
+
 (defn behavior-call
-  "Takes a zero-argument function and yields a behavior object that will
+  "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
   [f]
-  (reify
-    clojure.lang.IDeref
-    (deref [_]
-      (binding [*behaviors* (or *behaviors* (memoize #(%)))]
-        (*behaviors* f)))))
+  (Behavior. f))
 
 (defmacro behavior
-  "Takes a body of expressions and yields a behavior object that will evaluate
+  "Takes a body of expressions and yields a Behavior object that will evaluate
   the body each time it is dereferenced. All derefs of behaviors that happen
   inside a containing behavior will be consistent."
   [& form]
@@ -24,7 +26,7 @@
   (push! [stream msg] "Push a message onto the stream.")
   (subscribe [stream listener] "Add a listener function to the stream."))
 
-(defrecord EventStream [observers head]
+(deftype EventStream [observers head]
   clojure.lang.IDeref
   (deref [_] @head)
   Stream
