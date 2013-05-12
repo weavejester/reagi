@@ -22,26 +22,23 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
-(defprotocol Stream
-  (push! [stream msg] "Push a message onto the stream.")
-  (subscribe [stream listener] "Add a listener function to the stream."))
+(defprotocol Pushable
+  (push! [stream msg] "Push a message onto the stream."))
+
+(defprotocol Observable
+  (subscribe [stream observer] "Add an observer function to the stream."))
 
 (deftype EventStream [observers head]
   clojure.lang.IDeref
   (deref [_] @head)
-  Stream
+  Pushable
   (push! [stream msg]
     (reset! head msg)
     (doseq [[observer _] observers]
       (observer msg)))
+  Observable
   (subscribe [stream observer]
     (.put observers observer true)))
-
-(defn push-seq!
-  "Push a seq of messages to an event stream."
-  [stream msgs]
-  (doseq [m msgs]
-    (push! stream m)))
 
 (defn event-stream
   "Create a new event stream with an optional initial value. Calling deref on
@@ -50,12 +47,34 @@
   ([] (event-stream nil))
   ([init] (EventStream. (java.util.WeakHashMap.) (atom init))))
 
+(deftype FrozenEventStream [stream]
+  clojure.lang.IDeref
+  (deref [_] @stream)
+  Observable
+  (subscribe [_ observer] (subscribe stream observer)))
+
+(defn freeze
+  "Return a stream that can no longer be pushed to."
+  [stream]
+  (FrozenEventStream. stream))
+
+(defn frozen?
+  "Returns true if the stream cannot be pushed to."
+  [stream]
+  (instance? FrozenEventStream stream))
+
+(defn push-seq!
+  "Push a seq of messages to an event stream."
+  [stream msgs]
+  (doseq [m msgs]
+    (push! stream m)))
+
 (defn mapcat
   "Mapcat a function over a stream."
   [f stream]
   (let [stream* (event-stream)]
     (subscribe stream #(push-seq! stream* (f %)))
-    stream*))
+    (freeze stream*)))
 
 (defn map
   "Map a function over a stream."
@@ -73,4 +92,4 @@
   (let [stream* (event-stream)]
     (doseq [stream streams]
       (subscribe stream #(push! stream* %)))
-    stream*))
+    (freeze stream*)))
