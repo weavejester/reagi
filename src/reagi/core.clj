@@ -29,7 +29,7 @@
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
-(defrecord EventStream [observers head]
+(deftype EventStream [observers head]
   clojure.lang.IDeref
   (deref [_] @head)
   Pushable
