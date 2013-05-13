@@ -28,24 +28,24 @@
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
-(deftype EventStream [observers head]
+(defrecord EventStream [observers head]
   clojure.lang.IDeref
   (deref [_] @head)
   Pushable
   (push! [stream msg]
     (reset! head msg)
-    (doseq [[observer _] observers]
+    (doseq [observer @observers]
       (observer msg)))
   Observable
   (subscribe [stream observer]
-    (.put observers observer true)))
+    (swap! observers conj observer)))
 
 (defn event-stream
   "Create a new event stream with an optional initial value. Calling deref on
   an event stream will return the last value pushed into the event stream, or
   the init value if no values have been pushed."
   ([] (event-stream nil))
-  ([init] (EventStream. (java.util.WeakHashMap.) (atom init))))
+  ([init] (EventStream. (atom #{}) (atom init))))
 
 (deftype FrozenEventStream [stream]
   clojure.lang.IDeref
