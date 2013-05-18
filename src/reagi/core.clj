@@ -107,3 +107,8 @@
         stream* (event-stream)]
     (subscribe stream #(push! stream* (swap! acc f %)))
     (freeze stream*)))
+
+(defn accum
+  "Change an initial value based on an event stream of functions."
+  [init stream]
+  (reduce #(%2 %1) init stream))
