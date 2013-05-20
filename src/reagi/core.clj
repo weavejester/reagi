@@ -109,7 +109,7 @@
   "Reduce a stream with a function."
   [f init stream]
   (let [acc     (atom init)
-        stream* (event-stream)]
+        stream* (event-stream init)]
     (subscribe stream #(push! stream* (swap! acc f %)))
     (freeze stream*)))
 
