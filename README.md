@@ -9,7 +9,7 @@ about this library may change. You have been warned :)
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.0.4"]
+    [reagi "0.0.5"]
 
 ## Usage
 
