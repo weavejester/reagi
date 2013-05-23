@@ -1,10 +1,10 @@
 (ns reagi.core-test
-  (:use clojure.test
-        reagi.core))
+  (:use clojure.test)
+  (:require [reagi.core :as r]))
 
 (deftest test-behavior
   (let [a (atom 1)
-        b (behavior (+ 1 @a))]
+        b (r/behavior (+ 1 @a))]
     (is (= @b 2))
     (swap! a inc)
     (is (= @b 3))))
