@@ -61,6 +61,10 @@ user=> @plus-1
 4
 ```
 
+## Documentation
+
+* [API Docs](http://weavejester.github.io/reagi)
+
 ## License
 
 Copyright © 2013 James Reeves
