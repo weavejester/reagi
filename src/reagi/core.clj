@@ -125,3 +125,10 @@
        (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
        (filter #(= (count %) 1))
        (map first)))
+
+(defn cycle
+  "Incoming events cycle a sequence of values. Useful for switching between
+  states."
+  [values stream]
+  (let [vs (atom (cons nil (core/cycle values)))]
+    (map (fn [_] (first (swap! vs next))) stream)))
