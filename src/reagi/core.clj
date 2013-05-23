@@ -117,3 +117,11 @@
   "Change an initial value based on an event stream of functions."
   [init stream]
   (reduce #(%2 %1) init stream))
+
+(defn uniq
+  "Remove any successive duplicates from the stream."
+  [stream]
+  (->> stream
+       (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
+       (filter #(= (count %) 1))
+       (map first)))
