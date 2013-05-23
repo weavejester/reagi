@@ -19,3 +19,9 @@
       (is (= 1 @e))
       (r/push! e 2)
       (is (= 2 @e)))))
+
+(deftest test-map
+  (let [s (r/event-stream)
+        e (r/map inc s)]
+    (r/push! s 1)
+    (is (= 2 @e))))
