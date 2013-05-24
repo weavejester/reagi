@@ -72,30 +72,40 @@
 
 (defn mapcat
   "Mapcat a function over a stream."
-  [f stream]
-  (let [stream* (event-stream)]
-    (subscribe stream #(push-seq! stream* (f %)))
-    (freeze stream*)))
+  ([f stream]
+     (mapcat f nil stream))
+  ([f init stream]
+     (let [stream* (event-stream init)]
+       (subscribe stream #(push-seq! stream* (f %)))
+       (freeze stream*))))
 
 (defn map
   "Map a function over a stream."
-  [f stream]
-  (mapcat #(list (f %)) stream))
+  ([f stream]
+     (map f nil stream))
+  ([f init stream]
+     (mapcat #(list (f %)) init stream)))
 
 (defn filter
   "Filter a stream by a predicate."
-  [pred stream]
-  (mapcat #(if (pred %) (list %)) stream))
+  ([pred stream]
+     (filter pred nil stream))
+  ([pred init stream]
+     (mapcat #(if (pred %) (list %)) init stream)))
 
 (defn remove
   "Remove all items in a stream the predicate does not match."
-  [pred stream]
-  (filter (complement pred) stream))
+  ([pred stream]
+     (remove pred nil stream))
+  ([pred init stream]
+     (filter (complement pred) init stream)))
 
 (defn filter-by
   "Filter a stream by matching part of a map against a message."
-  [partial stream]
-  (filter #(= % (core/merge % partial)) stream))
+  ([partial stream]
+     (filter-by partial stream))
+  ([partial init stream]
+     (filter #(= % (core/merge % partial)) init stream)))
 
 (defn merge
   "Merge multiple streams into one."
@@ -107,28 +117,36 @@
 
 (defn reduce
   "Reduce a stream with a function."
-  [f init stream]
-  (let [acc     (atom init)
-        stream* (event-stream init)]
-    (subscribe stream #(push! stream* (swap! acc f %)))
-    (freeze stream*)))
+  ([f stream]
+     (reduce f nil stream))
+  ([f init stream]
+     (let [acc     (atom init)
+           stream* (event-stream init)]
+       (subscribe stream #(push! stream* (swap! acc f %)))
+       (freeze stream*))))
 
 (defn accum
   "Change an initial value based on an event stream of functions."
-  [init stream]
-  (reduce #(%2 %1) init stream))
+  ([stream]
+     (accum nil stream))
+  ([init stream]
+      (reduce #(%2 %1) init stream)))
 
 (defn uniq
   "Remove any successive duplicates from the stream."
-  [stream]
-  (->> stream
-       (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
-       (filter #(= (count %) 1))
-       (map first)))
+  ([stream]
+     (uniq nil stream))
+  ([init stream]
+     (->> stream
+          (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
+          (filter #(= (count %) 1))
+          (map first init))))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
-  (let [vs (atom (cons nil (core/cycle values)))]
-    (map (fn [_] (first (swap! vs next))) stream)))
+  (let [vs (atom (core/cycle values))]
+    (map (fn [_] (first (swap! vs next)))
+         (first values)
+         stream)))

@@ -22,13 +22,16 @@
 
 (deftest test-map
   (let [s (r/event-stream)
-        e (r/map inc s)]
+        e (r/map inc 1 s)]
+    (is (= 1 @e))
     (r/push! s 1)
     (is (= 2 @e))))
 
 (deftest test-cycle
   (let [s (r/event-stream)
         e (r/cycle [:on :off] s)]
-    (r/push! s 1) (is (= :on @e))
-    (r/push! s 1) (is (= :off @e))
-    (r/push! s 1) (is (= :on @e))))
+    (is (= :on @e))
+    (r/push! s 1)
+    (is (= :off @e))
+    (r/push! s 1)
+    (is (= :on @e))))
