@@ -1,5 +1,5 @@
 (ns reagi.core
-  (:refer-clojure :exclude [mapcat map filter remove merge reduce])
+  (:refer-clojure :exclude [mapcat map filter remove merge reduce cycle])
   (:require [clojure.core :as core]))
 
 (def ^:dynamic *behaviors* nil)
