@@ -27,6 +27,13 @@
     (r/push! s 1)
     (is (= 2 @e))))
 
+(deftest test-filter-by
+  (let [s (r/event-stream)
+        e (r/filter-by {:type :key-pressed} s)]
+    (r/push! s {:type :key-pressed :key :a})
+    (r/push! s {:type :key-released :key :a})
+    (is (= @e {:type :key-pressed :key :a}))))
+
 (deftest test-cycle
   (let [s (r/event-stream)
         e (r/cycle [:on :off] s)]

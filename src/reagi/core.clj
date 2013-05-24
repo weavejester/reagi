@@ -103,7 +103,7 @@
 (defn filter-by
   "Filter a stream by matching part of a map against a message."
   ([partial stream]
-     (filter-by partial stream))
+     (filter-by partial nil stream))
   ([partial init stream]
      (filter #(= % (core/merge % partial)) init stream)))
 
