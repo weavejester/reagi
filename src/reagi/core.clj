@@ -1,5 +1,5 @@
 (ns reagi.core
-  (:refer-clojure :exclude [mapcat map filter remove merge reduce cycle])
+  (:refer-clojure :exclude [mapcat map filter remove merge reduce cycle count])
   (:require [clojure.core :as core]))
 
 (def ^:dynamic *behaviors* nil)
@@ -124,6 +124,11 @@
            stream* (event-stream init)]
        (subscribe stream #(push! stream* (swap! acc f %)))
        (freeze stream*))))
+
+(defn count
+  "Return an accumulating count of the items in a stream."
+  [stream]
+  (reduce (fn [x _] (inc x)) 0 stream))
 
 (defn accum
   "Change an initial value based on an event stream of functions."
