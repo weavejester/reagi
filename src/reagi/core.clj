@@ -144,7 +144,7 @@
   ([init stream]
      (->> stream
           (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
-          (filter #(= (count %) 1))
+          (filter #(= (core/count %) 1))
           (map first init))))
 
 (defn cycle

@@ -34,6 +34,16 @@
     (r/push! s {:type :key-released :key :a})
     (is (= @e {:type :key-pressed :key :a}))))
 
+(deftest test-uniq
+  (let [s (r/event-stream)
+        e (r/reduce + 0 (r/uniq s))]
+    (r/push! s 1)
+    (r/push! s 1)
+    (is (= 1 @e))
+    (r/push! s 1)
+    (r/push! s 2)
+    (is (= 3 @e))))
+
 (deftest test-count
   (let [e (r/event-stream)
         c (r/count e)]
