@@ -26,29 +26,30 @@
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
-(deftype EventStream [observers head]
-  clojure.lang.IDeref
-  (deref [_] @head)
-  clojure.lang.IFn
-  (invoke [stream msg]
-    (reset! head msg)
-    (doseq [observer @observers]
-      (observer msg)))
-  Observable
-  (subscribe [stream observer]
-    (swap! observers conj observer)))
-
-(defn push!
-  "Push a message onto the stream."
-  [stream msg]
-  (stream msg))
-
 (defn event-stream
   "Create a new event stream with an optional initial value. Calling deref on
   an event stream will return the last value pushed into the event stream, or
   the init value if no values have been pushed."
   ([] (event-stream nil))
-  ([init] (EventStream. (atom #{}) (atom init))))
+  ([init]
+     (let [observers (atom #{})
+           head      (atom init)]
+       (reify
+         clojure.lang.IDeref
+         (deref [_] @head)
+         clojure.lang.IFn
+         (invoke [stream msg]
+           (reset! head msg)
+           (doseq [observer @observers]
+             (observer msg)))
+         Observable
+         (subscribe [stream observer]
+           (swap! observers conj observer))))))
+
+(defn push!
+  "Push a message onto the stream."
+  [stream msg]
+  (stream msg))
 
 (defn freeze
   "Return a stream that can no longer be pushed to."
