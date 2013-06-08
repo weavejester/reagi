@@ -4,17 +4,15 @@
 
 (def ^:dynamic *behaviors* nil)
 
-(deftype Behavior [f]
-  clojure.lang.IDeref
-  (deref [_]
-    (binding [*behaviors* (or *behaviors* (memoize #(%)))]
-      (*behaviors* f))))
-
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
   [f]
-  (Behavior. f))
+  (reify
+    clojure.lang.IDeref
+    (deref [_]
+      (binding [*behaviors* (or *behaviors* (memoize #(%)))]
+        (*behaviors* f)))))
 
 (defmacro behavior
   "Takes a body of expressions and yields a Behavior object that will evaluate
