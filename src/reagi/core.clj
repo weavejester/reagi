@@ -23,23 +23,25 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
-(defprotocol Pushable
-  (push! [stream msg] "Push a message onto the stream."))
-
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
 (deftype EventStream [observers head]
   clojure.lang.IDeref
   (deref [_] @head)
-  Pushable
-  (push! [stream msg]
+  clojure.lang.IFn
+  (invoke [stream msg]
     (reset! head msg)
     (doseq [observer @observers]
       (observer msg)))
   Observable
   (subscribe [stream observer]
     (swap! observers conj observer)))
+
+(defn push!
+  "Push a message onto the stream."
+  [stream msg]
+  (stream msg))
 
 (defn event-stream
   "Create a new event stream with an optional initial value. Calling deref on
