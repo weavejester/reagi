@@ -25,6 +25,12 @@
     (is (r/frozen? f))
     (is (thrown? ClassCastException (r/push! f 1)))))
 
+(deftest test-mapcat
+  (let [s (r/event-stream)
+        e (r/mapcat (fn [x] [(inc x)]) s)]
+    (r/push! s 1)
+    (is (= 2 @e))))
+
 (deftest test-map
   (let [s (r/event-stream)
         e (r/map inc 1 s)]

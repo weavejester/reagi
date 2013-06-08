@@ -1,5 +1,5 @@
 (ns reagi.core
-  (:refer-clojure :exclude [mapcat map filter remove merge reduce cycle count])
+  (:refer-clojure :exclude [derive mapcat map filter remove merge reduce cycle count])
   (:require [clojure.core :as core]))
 
 (def ^:dynamic *behaviors* nil)
@@ -63,6 +63,19 @@
   [stream]
   (not (ifn? stream)))
 
+(defn derive
+  "Derive an event stream from a function."
+  ([func] (derive nil func))
+  ([init func]
+     (let [stream (event-stream init)]
+       (reify
+         clojure.lang.IDeref
+         (deref [_] @stream)
+         clojure.lang.IFn
+         (invoke [_ msg] (func stream msg))
+         Observable
+         (subscribe [_ observer] (subscribe stream observer))))))
+
 (defn push-seq!
   "Push a seq of messages to an event stream."
   [stream msgs]
@@ -74,8 +87,8 @@
   ([f stream]
      (mapcat f nil stream))
   ([f init stream]
-     (let [stream* (event-stream init)]
-       (subscribe stream #(push-seq! stream* (f %)))
+     (let [stream* (derive init #(push-seq! %1 (f %2)))]
+       (subscribe stream stream*)
        (freeze stream*))))
 
 (defn map
