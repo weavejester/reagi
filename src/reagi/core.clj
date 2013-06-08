@@ -50,21 +50,19 @@
   ([] (event-stream nil))
   ([init] (EventStream. (atom #{}) (atom init))))
 
-(deftype FrozenEventStream [stream]
-  clojure.lang.IDeref
-  (deref [_] @stream)
-  Observable
-  (subscribe [_ observer] (subscribe stream observer)))
-
 (defn freeze
   "Return a stream that can no longer be pushed to."
   [stream]
-  (FrozenEventStream. stream))
+  (reify
+    clojure.lang.IDeref
+    (deref [_] @stream)
+    Observable
+    (subscribe [_ observer] (subscribe stream observer))))
 
 (defn frozen?
   "Returns true if the stream cannot be pushed to."
   [stream]
-  (instance? FrozenEventStream stream))
+  (not (ifn? stream)))
 
 (defn push-seq!
   "Push a seq of messages to an event stream."

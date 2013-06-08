@@ -20,6 +20,11 @@
       (r/push! e 2)
       (is (= 2 @e)))))
 
+(deftest test-freeze
+  (let [f (r/freeze (r/event-stream))]
+    (is (r/frozen? f))
+    (is (thrown? ClassCastException (r/push! f 1)))))
+
 (deftest test-map
   (let [s (r/event-stream)
         e (r/map inc 1 s)]
