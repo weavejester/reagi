@@ -24,13 +24,18 @@
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
+(defn- weak-hash-map
+  "Create a thread-safe mutable map with weak keys."
+  []
+  (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
+
 (defn event-stream
   "Create a new event stream with an optional initial value. Calling deref on
   an event stream will return the last value pushed into the event stream, or
   the init value if no values have been pushed."
   ([] (event-stream nil))
   ([init]
-     (let [observers (atom #{})
+     (let [observers (weak-hash-map)
            head      (atom init)]
        (reify
          clojure.lang.IDeref
@@ -38,11 +43,11 @@
          clojure.lang.IFn
          (invoke [stream msg]
            (reset! head msg)
-           (doseq [observer @observers]
+           (doseq [[observer _] observers]
              (observer msg)))
          Observable
          (subscribe [stream observer]
-           (swap! observers conj observer))))))
+           (.put observers observer true))))))
 
 (defn push!
   "Push a message onto the stream."
@@ -124,7 +129,7 @@
   [& streams]
   (let [stream* (event-stream)]
     (doseq [stream streams]
-      (subscribe stream #(push! stream* %)))
+      (subscribe stream stream*))
     (freeze stream*)))
 
 (defn reduce
@@ -133,8 +138,8 @@
      (reduce f nil stream))
   ([f init stream]
      (let [acc     (atom init)
-           stream* (event-stream init)]
-       (subscribe stream #(push! stream* (swap! acc f %)))
+           stream* (derive init #(push! %1 (swap! acc f %2)))]
+       (subscribe stream stream*)
        (freeze stream*))))
 
 (defn count
