@@ -77,3 +77,10 @@
     (is (= :off @e))
     (r/push! s 1)
     (is (= :on @e))))
+
+(deftest test-gc
+  (let [s (r/event-stream)
+        e (r/map inc (r/map inc s))]
+    (System/gc)
+    (r/push! s 1)
+    (is (= @e 3))))

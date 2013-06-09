@@ -74,11 +74,11 @@
 
 (defn- derived-stream
   "Derive an event stream from a function."
-  [init func]
+  [init func origin]
   (let [stream (event-stream init)]
     (reify
       clojure.lang.IDeref
-      (deref [_] @stream)
+      (deref [_] origin @stream)
       clojure.lang.IFn
       (invoke [_ msg] (func stream msg))
       Observable
@@ -91,7 +91,7 @@
   ([func stream]
      (derive nil func stream))
   ([init func stream]
-     (let [stream* (derived-stream init func)]
+     (let [stream* (derived-stream init func stream)]
        (subscribe stream stream*)
        (freeze stream*))))
 
