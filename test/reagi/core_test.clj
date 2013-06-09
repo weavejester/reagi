@@ -15,10 +15,17 @@
     (is (= 1 @(r/event-stream 1))))
   (testing "Push"
     (let [e (r/event-stream)]
-      (r/push! e 1)
+      (e 1)
       (is (= 1 @e))
-      (r/push! e 2)
+      (e 2)
       (is (= 2 @e)))))
+
+(deftest test-push!
+  (let [e (r/event-stream)]
+    (r/push! e 1)
+    (is (= 1 @e))
+    (r/push! e 2 3 4)
+    (is (= 4 @e))))
 
 (deftest test-freeze
   (let [f (r/freeze (r/event-stream))]
@@ -48,11 +55,9 @@
 (deftest test-uniq
   (let [s (r/event-stream)
         e (r/reduce + 0 (r/uniq s))]
-    (r/push! s 1)
-    (r/push! s 1)
+    (r/push! s 1 1)
     (is (= 1 @e))
-    (r/push! s 1)
-    (r/push! s 2)
+    (r/push! s 1 2)
     (is (= 3 @e))))
 
 (deftest test-count
@@ -61,8 +66,7 @@
     (is (= @c 0))
     (r/push! e 1)
     (is (= @c 1))
-    (r/push! e 2)
-    (r/push! e 3)
+    (r/push! e 2 3)
     (is (= @c 3))))
 
 (deftest test-cycle
