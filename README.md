@@ -1,5 +1,7 @@
 # Reagi
 
+[![Build Status](https://travis-ci.org/weavejester/reagi.png?branch=master)](https://travis-ci.org/weavejester/reagi)
+
 An experimental [FRP][1] library for Clojure. The API is not fixed in
 stone. Things may change.
 
