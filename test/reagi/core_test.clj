@@ -90,4 +90,11 @@
           e (r/merge (r/map inc s))]
       (System/gc)
       (r/push! s 1)
-      (is (= @e 2)))))
+      (is (= @e 2))))
+  (testing "GC unreferenced streams"
+    (let [a (atom nil)
+          s (r/event-stream)]
+      (r/map #(reset! a %) s)
+      (System/gc)
+      (r/push! s 1)
+      (is (nil? @a)))))
