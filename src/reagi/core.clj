@@ -58,12 +58,13 @@
 
 (defn freeze
   "Return a stream that can no longer be pushed to."
-  [stream]
-  (reify
-    clojure.lang.IDeref
-    (deref [_] @stream)
-    Observable
-    (subscribe [_ observer] (subscribe stream observer))))
+  ([stream] (freeze stream nil))
+  ([stream parent-refs]
+     (reify
+       clojure.lang.IDeref
+       (deref [_] parent-refs @stream)
+       Observable
+       (subscribe [_ observer] (subscribe stream observer)))))
 
 (defn frozen?
   "Returns true if the stream cannot be pushed to."
@@ -72,11 +73,11 @@
 
 (defn- derived-stream
   "Derive an event stream from a function."
-  [init func origin]
+  [init func]
   (let [stream (event-stream init)]
     (reify
       clojure.lang.IDeref
-      (deref [_] origin @stream)
+      (deref [_] @stream)
       clojure.lang.IFn
       (invoke [_ msg] (func stream msg))
       Observable
@@ -89,9 +90,9 @@
   ([func stream]
      (derive nil func stream))
   ([init func stream]
-     (let [stream* (derived-stream init func stream)]
+     (let [stream* (derived-stream init func)]
        (subscribe stream stream*)
-       (freeze stream*))))
+       (freeze stream* [stream]))))
 
 (defn mapcat
   "Mapcat a function over a stream."
@@ -134,7 +135,7 @@
   (let [stream* (event-stream)]
     (doseq [stream streams]
       (subscribe stream stream*))
-    (freeze stream*)))
+    (freeze stream* streams)))
 
 (defn reduce
   "Reduce a stream with a function."
