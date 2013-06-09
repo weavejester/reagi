@@ -13,6 +13,10 @@ Add the following dependency to your `project.clj` file:
 
     [reagi "0.2.0"]
 
+## Documentation
+
+* [API Docs](http://weavejester.github.io/reagi/reagi.core.html)
+
 ## Usage
 
 Reagi introduces two new reference types: behaviors and event-streams.
@@ -62,10 +66,6 @@ nil
 user=> @plus-1
 4
 ```
-
-## Documentation
-
-* [API Docs](http://weavejester.github.io/reagi)
 
 ## License
 
