@@ -68,18 +68,28 @@
   [stream]
   (not (ifn? stream)))
 
-(defn derive
+(defn- derived-stream
   "Derive an event stream from a function."
-  ([func] (derive nil func))
-  ([init func]
-     (let [stream (event-stream init)]
-       (reify
-         clojure.lang.IDeref
-         (deref [_] @stream)
-         clojure.lang.IFn
-         (invoke [_ msg] (func stream msg))
-         Observable
-         (subscribe [_ observer] (subscribe stream observer))))))
+  [init func]
+  (let [stream (event-stream init)]
+    (reify
+      clojure.lang.IDeref
+      (deref [_] @stream)
+      clojure.lang.IFn
+      (invoke [_ msg] (func stream msg))
+      Observable
+      (subscribe [_ observer] (subscribe stream observer)))))
+
+(defn derive
+  "Derive a new event stream from another and a function. The function will be
+  called each time the existing stream receives a message, and will have the
+  new stream and the message as arguments."
+  ([func stream]
+     (derive nil func stream))
+  ([init func stream]
+     (let [stream* (derived-stream init func)]
+       (subscribe stream stream*)
+       (freeze stream*))))
 
 (defn push-seq!
   "Push a seq of messages to an event stream."
@@ -92,9 +102,7 @@
   ([f stream]
      (mapcat f nil stream))
   ([f init stream]
-     (let [stream* (derive init #(push-seq! %1 (f %2)))]
-       (subscribe stream stream*)
-       (freeze stream*))))
+     (derive init #(push-seq! %1 (f %2)) stream)))
 
 (defn map
   "Map a function over a stream."
@@ -137,10 +145,8 @@
   ([f stream]
      (reduce f nil stream))
   ([f init stream]
-     (let [acc     (atom init)
-           stream* (derive init #(push! %1 (swap! acc f %2)))]
-       (subscribe stream stream*)
-       (freeze stream*))))
+     (let [acc (atom init)]
+       (derive init #(push! %1 (swap! acc f %2)) stream))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
