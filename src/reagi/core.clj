@@ -50,9 +50,13 @@
            (.put observers observer true))))))
 
 (defn push!
-  "Push a message onto the stream."
-  [stream msg]
-  (stream msg))
+  "Push one or more messages onto the stream."
+  ([stream])
+  ([stream msg]
+     (stream msg))
+  ([stream msg & msgs]
+     (doseq [m (cons msg msgs)]
+       (stream m))))
 
 (defn freeze
   "Return a stream that can no longer be pushed to."
@@ -91,18 +95,12 @@
        (subscribe stream stream*)
        (freeze stream*))))
 
-(defn push-seq!
-  "Push a seq of messages to an event stream."
-  [stream msgs]
-  (doseq [m msgs]
-    (push! stream m)))
-
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
      (mapcat f nil stream))
   ([f init stream]
-     (derive init #(push-seq! %1 (f %2)) stream)))
+     (derive init #(apply push! %1 (f %2)) stream)))
 
 (defn map
   "Map a function over a stream."
