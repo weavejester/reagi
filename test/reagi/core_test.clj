@@ -78,6 +78,15 @@
     (r/push! s 1)
     (is (= :on @e))))
 
+(deftest test-constantly
+  (let [s (r/event-stream)
+        e (r/constantly 1 s)
+        a (r/reduce + 0 e)]
+    (is (= @e 1))
+    (r/push! s 2 4 5)
+    (is (= @e 1))
+    (is (= @a 3))))
+
 (deftest test-gc
   (testing "Derived maps"
     (let [s (r/event-stream)

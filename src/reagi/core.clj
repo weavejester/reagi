@@ -1,6 +1,7 @@
 (ns reagi.core
-  (:refer-clojure :exclude [derive mapcat map filter remove merge reduce cycle count])
-  (:require [clojure.core :as core]))
+  (:require [clojure.core :as core])
+  (:refer-clojure :exclude [constantly derive mapcat map filter remove
+                            merge reduce cycle count]))
 
 (def ^:dynamic *behaviors* nil)
 
@@ -175,3 +176,8 @@
     (map (fn [_] (first (swap! vs next)))
          (first values)
          stream)))
+
+(defn constantly
+  "Constantly map the same value over an event stream."
+  [value stream]
+  (map (core/constantly value) value stream))
