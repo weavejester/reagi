@@ -181,3 +181,15 @@
   "Constantly map the same value over an event stream."
   [value stream]
   (map (core/constantly value) value stream))
+
+(defn throttle
+  "Remove any events in a stream that occur too soon after the prior event.
+  The timeout is specified in milliseconds."
+  ([timeout-ms stream]
+     (throttle timeout-ms nil stream))
+  ([timeout-ms init stream]
+     (->> stream
+          (map (fn [x] [(System/currentTimeMillis) x]))
+          (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
+          (remove (fn [[dt _]] (>= timeout-ms dt)))
+          (map second init))))

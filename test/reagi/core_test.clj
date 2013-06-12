@@ -87,6 +87,17 @@
     (is (= @e 1))
     (is (= @a 3))))
 
+(deftest test-throttle
+  (let [s (r/event-stream)
+        e (r/throttle 100 s)]
+    (r/push! s 1 2)
+    (is (= @e 1))
+    (Thread/sleep 101)
+    (r/push! s 3)
+    (Thread/sleep 50)
+    (r/push! s 4)
+    (is (= @e 3))))
+
 (deftest test-gc
   (testing "Derived maps"
     (let [s (r/event-stream)
