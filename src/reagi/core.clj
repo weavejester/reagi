@@ -74,7 +74,7 @@
 
 (defn- derived-stream
   "Derive an event stream from a function."
-  [init func]
+  [func init]
   (let [stream (event-stream init)]
     (reify
       clojure.lang.IDeref
@@ -89,9 +89,9 @@
   called each time the existing stream receives a message, and will have the
   new stream and the message as arguments."
   ([func stream]
-     (derive nil func stream))
-  ([init func stream]
-     (let [stream* (derived-stream init func)]
+     (derive func nil stream))
+  ([func init stream]
+     (let [stream* (derived-stream func init)]
        (subscribe stream stream*)
        (freeze stream* [stream]))))
 
@@ -100,7 +100,7 @@
   ([f stream]
      (mapcat f nil stream))
   ([f init stream]
-     (derive init #(apply push! %1 (f %2)) stream)))
+     (derive #(apply push! %1 (f %2)) init stream)))
 
 (defn map
   "Map a function over a stream."
@@ -144,7 +144,7 @@
      (reduce f nil stream))
   ([f init stream]
      (let [acc (atom init)]
-       (derive init #(push! %1 (swap! acc f %2)) stream))))
+       (derive #(push! %1 (swap! acc f %2)) init stream))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
