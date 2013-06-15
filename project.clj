@@ -1,5 +1,5 @@
-(defproject reagi "0.2.1"
-  :description "Very experimental FRP library"
+(defproject reagi "0.3.0"
+  :description "An experimental FRP library"
   :url "https://github.com/weavejester/reagi"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
