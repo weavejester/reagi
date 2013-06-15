@@ -1,7 +1,7 @@
 (ns reagi.core
   (:require [clojure.core :as core])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
-                            merge reduce cycle count dosync]))
+                            merge reduce cycle count dosync ensure]))
 
 (def ^:dynamic *cache* nil)
 
@@ -20,6 +20,13 @@
 (defn- cache-lookup! [cache key get-value]
   (-> (swap! cache cache-hit key get-value)
       (get key)))
+
+(defn ensure
+  "Fix the value of a behavior of event stream within a dosync. Returns its
+  input."
+  [behavior-or-stream]
+  (deref behavior-or-stream)
+  behavior-or-stream)
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
@@ -61,6 +68,7 @@
              (deref head)))
          clojure.lang.IFn
          (invoke [stream msg]
+           (ensure stream)
            (reset! head msg)
            (doseq [[observer _] observers]
              (observer msg)))
