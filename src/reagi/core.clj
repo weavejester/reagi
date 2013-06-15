@@ -1,19 +1,36 @@
 (ns reagi.core
   (:require [clojure.core :as core])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
-                            merge reduce cycle count]))
+                            merge reduce cycle count dosync]))
 
-(def ^:dynamic *behaviors* nil)
+(def ^:dynamic *cache* nil)
+
+(defmacro dosync
+  "Any event stream or behavior deref'ed within this block is guaranteed to
+  always return the same value."
+  [& body]
+  `(binding [*cache* (atom {})]
+     ~@body))
+
+(defn- cache-hit [cache key get-value]
+  (if (contains? cache key)
+    cache
+    (assoc cache key (get-value))))
+
+(defn- cache-lookup! [cache key get-value]
+  (-> (swap! cache cache-hit key get-value)
+      (get key)))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
-  [f]
+  [func]
   (reify
     clojure.lang.IDeref
-    (deref [_]
-      (binding [*behaviors* (or *behaviors* (memoize #(%)))]
-        (*behaviors* f)))))
+    (deref [behavior]
+      (if *cache*
+        (cache-lookup! *cache* behavior func)
+        (func)))))
 
 (defmacro behavior
   "Takes a body of expressions and yields a Behavior object that will evaluate
@@ -38,7 +55,10 @@
            head      (atom init)]
        (reify
          clojure.lang.IDeref
-         (deref [_] @head)
+         (deref [stream]
+           (if *cache*
+             (cache-lookup! *cache* stream #(deref head))
+             (deref head)))
          clojure.lang.IFn
          (invoke [stream msg]
            (reset! head msg)
