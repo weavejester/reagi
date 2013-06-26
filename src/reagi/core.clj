@@ -1,5 +1,6 @@
 (ns reagi.core
   (:require [clojure.core :as core])
+  (:import java.lang.ref.WeakReference)
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count dosync ensure]))
 
@@ -221,3 +222,21 @@
           (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
           (remove (fn [[dt _]] (>= timeout-ms dt)))
           (map second init))))
+
+(defn- start-sampler
+  [interval reference ^WeakReference stream-ref]
+  (future
+    (loop []
+      (when-let [stream (.get stream-ref)]
+        (push! stream @reference)
+        (Thread/sleep interval)
+        (recur)))))
+
+(defn sample
+  "Turn a reference into an event stream by deref-ing it at fixed intervals.
+  The interval time is specified in milliseconds. A background thread is started
+  by this function that will persist until the return value is GCed."
+  [interval-ms reference]
+  (let [stream (event-stream @reference)]
+    (start-sampler interval-ms reference (WeakReference. stream))
+    stream))

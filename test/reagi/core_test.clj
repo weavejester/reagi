@@ -133,3 +133,27 @@
       (System/gc)
       (r/push! s 1)
       (is (nil? @a)))))
+
+(deftest test-sample
+  (testing "Basic sample"
+    (let [a (atom 0)
+          s (r/sample 100 a)]
+      (is (= @s 0))
+      (swap! a inc)
+      (is (= @s 0))
+      (Thread/sleep 120)
+      (is (= @s 1))))
+  (testing "Thread ends if stream GCed"
+    (let [a (atom false)]
+      (r/sample 100 (r/behavior (reset! a true)))
+      (System/gc)
+      (reset! a false)
+      (Thread/sleep 120)
+      (is (= @a false))))
+  (testing "Thread continues if stream not GCed"
+    (let [a (atom false)
+          s (r/sample 100 (r/behavior (reset! a true)))]
+      (System/gc)
+      (reset! a false)
+      (Thread/sleep 120)
+      (is (= @a true)))))
