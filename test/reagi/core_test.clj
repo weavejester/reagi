@@ -48,10 +48,17 @@
     (is (thrown? ClassCastException (r/push! f 1)))))
 
 (deftest test-mapcat
-  (let [s (r/event-stream 0)
-        e (r/mapcat (fn [x] [(inc x)]) s)]
-    (r/push! s 1)
-    (is (= 2 @e))))
+  (testing "Basic operation"
+    (let [s (r/event-stream 0)
+          e (r/mapcat (comp list inc) s)]
+      (is (= 1 @e))
+      (r/push! s 1)
+      (is (= 2 @e))))
+  (testing "No initial value"
+    (let [s (r/event-stream)
+          e (r/mapcat (comp list inc) s)]
+      (r/push! s 1)
+      (is (= 2 @e)))))
 
 (deftest test-map
   (let [s (r/event-stream 0)

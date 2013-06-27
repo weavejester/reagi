@@ -54,19 +54,24 @@
   (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
 
 (defn event-stream
-  "Create a new event stream with an optional initial value. Calling deref on
-  an event stream will return the last value pushed into the event stream, or
-  the init value if no values have been pushed."
+  "Create a new event stream with an optional initial value, which may be a
+  delay. Calling deref on an event stream will return the last value pushed
+  into the event stream, or the initial value if no values have been pushed."
   ([] (event-stream nil))
   ([init]
-     (let [observers (weak-hash-map)
-           head      (atom init)]
+     (let [observers    (weak-hash-map)
+           undefined    (Object.)
+           head         (atom undefined)
+           resolve-head #(let [value @head]
+                           (if (identical? value undefined)
+                             (force init)
+                             value))]
        (reify
          clojure.lang.IDeref
          (deref [stream]
            (if *cache*
-             (cache-lookup! *cache* stream #(deref head))
-             (deref head)))
+             (cache-lookup! *cache* stream resolve-head)
+             (resolve-head)))
          clojure.lang.IFn
          (invoke [stream msg]
            (ensure stream)
@@ -125,7 +130,9 @@
 (defn mapcat
   "Mapcat a function over a stream."
   [f stream]
-  (derive #(apply push! %1 (f %2)) (last (f @stream)) stream))
+  (derive #(apply push! %1 (f %2))
+          (delay (last (f @stream)))
+          stream))
 
 (defn map
   "Map a function over a stream."
