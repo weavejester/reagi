@@ -26,7 +26,7 @@
   "Fix the value of a behavior of event stream within a dosync. Returns its
   input."
   [behavior-or-stream]
-  (deref behavior-or-stream)
+  (when *cache* (deref behavior-or-stream))
   behavior-or-stream)
 
 (defn behavior-call
