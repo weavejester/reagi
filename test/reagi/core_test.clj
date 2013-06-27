@@ -47,6 +47,36 @@
     (is (r/frozen? f))
     (is (thrown? ClassCastException (r/push! f 1)))))
 
+(deftest test-zip
+  (let [e1 (r/event-stream 0)
+        e2 (r/event-stream 0)
+        z  (r/zip e1 e2)]
+    (is (= @z [0 0]))
+    (r/push! e1 1)
+    (is (= @z [1 0]))
+    (r/push! e2 2)
+    (is (= @z [1 2]))
+    (r/push! e1 3)
+    (r/push! e2 4)
+    (is (= @z [3 4]))))
+
+(deftest test-map
+  (testing "Basic operation"
+    (let [s (r/event-stream 0)
+          e (r/map inc s)]
+      (is (= 1 @e))
+      (r/push! s 1)
+      (is (= 2 @e))))
+  (testing "Multiple streams"
+    (let [s1 (r/event-stream 0)
+          s2 (r/event-stream 0)
+          e  (r/map + s1 s2)]
+      (is (= @e 0))
+      (r/push! s1 4)
+      (is (= @e 4))
+      (r/push! s2 6)
+      (is (= @e 10)))))
+
 (deftest test-mapcat
   (testing "Basic operation"
     (let [s (r/event-stream 0)
@@ -58,14 +88,16 @@
     (let [s (r/event-stream)
           e (r/mapcat (comp list inc) s)]
       (r/push! s 1)
-      (is (= 2 @e)))))
-
-(deftest test-map
-  (let [s (r/event-stream 0)
-        e (r/map inc s)]
-    (is (= 1 @e))
-    (r/push! s 1)
-    (is (= 2 @e))))
+      (is (= 2 @e))))
+  (testing "Multiple streams"
+    (let [s1 (r/event-stream 0)
+          s2 (r/event-stream 0)
+          e  (r/mapcat (comp list +) s1 s2)]
+      (is (= @e 0))
+      (r/push! s1 2)
+      (is (= @e 2))
+      (r/push! s2 3)
+      (is (= @e 5)))))
 
 (deftest test-filter-by
   (let [s (r/event-stream)
@@ -133,6 +165,12 @@
       (System/gc)
       (r/push! s 1)
       (is (= @e 2))))
+  (testing "Zip"
+    (let [s (r/event-stream 0)
+          e (r/zip (r/map inc s) (r/map dec s))]
+      (System/gc)
+      (r/push! s 1)
+      (is (= @e [2 0]))))
   (testing "GC unreferenced streams"
     (let [a (atom nil)
           s (r/event-stream)]

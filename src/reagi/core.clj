@@ -127,17 +127,45 @@
     (subscribe stream stream*)
     (freeze stream* [stream])))
 
-(defn mapcat
-  "Mapcat a function over a stream."
-  [f stream]
-  (derive #(apply push! %1 (f %2))
-          (delay (last (f @stream)))
-          stream))
+(defn- map* [f stream]
+  (derive #(%1 (f %2)) (delay (f @stream)) stream))
+
+(defn merge
+  "Combine multiple streams into one. All events from the input streams are
+  pushed to the returned stream."
+  [& streams]
+  (let [stream* (event-stream)]
+    (doseq [stream streams]
+      (subscribe stream stream*))
+    (freeze stream* streams)))
+
+(defn zip
+  "Combine multiple streams into one. On an event from any input stream, a
+  vector will be pushed to the returned stream containing the latest events
+  of all input streams."
+  [& streams]
+  (let [indexed (core/map-indexed (fn [i s] (map* (fn [x] [i x]) s)) streams)
+        head    (atom (vec (core/map deref streams)))
+        stream* (derived-stream (fn [s [i x]] (s (swap! head assoc i x))) @head)]
+    (doseq [stream indexed]
+      (subscribe stream stream*))
+    (freeze stream* indexed)))
 
 (defn map
   "Map a function over a stream."
-  [f stream]
-  (mapcat #(list (f %)) stream))
+  ([f stream]
+     (map* f stream))
+  ([f stream & streams]
+     (map* (partial apply f) (apply zip stream streams))))
+
+(defn mapcat
+  "Mapcat a function over a stream."
+  ([f stream]
+     (derive #(apply push! %1 (f %2))
+             (delay (last (f @stream)))
+             stream))
+  ([f stream & streams]
+     (mapcat (partial apply f) (apply zip stream streams))))
 
 (defn filter
   "Filter a stream by a predicate."
@@ -153,14 +181,6 @@
   "Filter a stream by matching part of a map against a message."
   [partial stream]
   (filter #(= % (core/merge % partial)) stream))
-
-(defn merge
-  "Merge multiple streams into one."
-  [& streams]
-  (let [stream* (event-stream)]
-    (doseq [stream streams]
-      (subscribe stream stream*))
-    (freeze stream* streams)))
 
 (defn reduce
   "Reduce a stream with a function."
