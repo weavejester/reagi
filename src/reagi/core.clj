@@ -117,47 +117,35 @@
   "Derive a new event stream from another and a function. The function will be
   called each time the existing stream receives a message, and will have the
   new stream and the message as arguments."
-  ([func stream]
-     (derive func nil stream))
-  ([func init stream]
-     (let [stream* (derived-stream func init)]
-       (subscribe stream stream*)
-       (freeze stream* [stream]))))
+  [func init stream]
+  (let [stream* (derived-stream func init)]
+    (subscribe stream stream*)
+    (freeze stream* [stream])))
 
 (defn mapcat
   "Mapcat a function over a stream."
-  ([f stream]
-     (mapcat f nil stream))
-  ([f init stream]
-     (derive #(apply push! %1 (f %2)) init stream)))
+  [f stream]
+  (derive #(apply push! %1 (f %2)) (last (f @stream)) stream))
 
 (defn map
   "Map a function over a stream."
-  ([f stream]
-     (map f nil stream))
-  ([f init stream]
-     (mapcat #(list (f %)) init stream)))
+  [f stream]
+  (mapcat #(list (f %)) stream))
 
 (defn filter
   "Filter a stream by a predicate."
-  ([pred stream]
-     (filter pred nil stream))
-  ([pred init stream]
-     (mapcat #(if (pred %) (list %)) init stream)))
+  [pred stream]
+  (mapcat #(if (pred %) (list %)) stream))
 
 (defn remove
   "Remove all items in a stream the predicate does not match."
-  ([pred stream]
-     (remove pred nil stream))
-  ([pred init stream]
-     (filter (complement pred) init stream)))
+  [pred stream]
+  (filter (complement pred) stream))
 
 (defn filter-by
   "Filter a stream by matching part of a map against a message."
-  ([partial stream]
-     (filter-by partial nil stream))
-  ([partial init stream]
-     (filter #(= % (core/merge % partial)) init stream)))
+  [partial stream]
+  (filter #(= % (core/merge % partial)) stream))
 
 (defn merge
   "Merge multiple streams into one."
@@ -170,7 +158,7 @@
 (defn reduce
   "Reduce a stream with a function."
   ([f stream]
-     (reduce f nil stream))
+     (reduce f @stream stream))
   ([f init stream]
      (let [acc (atom init)]
        (derive #(push! %1 (swap! acc f %2)) init stream))))
@@ -182,46 +170,39 @@
 
 (defn accum
   "Change an initial value based on an event stream of functions."
-  ([stream]
-     (accum nil stream))
-  ([init stream]
-      (reduce #(%2 %1) init stream)))
+  [init stream]
+  (reduce #(%2 %1) init stream))
 
 (defn uniq
   "Remove any successive duplicates from the stream."
-  ([stream]
-     (uniq nil stream))
-  ([init stream]
-     (->> stream
-          (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
-          (filter #(= (core/count %) 1))
-          (map first init))))
+  [stream]
+  (->> stream
+       (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
+       (filter #(= (core/count %) 1))
+       (map first)))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
-  (let [vs (atom (core/cycle values))]
+  (let [vs (atom (cons nil (core/cycle values)))]
     (map (fn [_] (first (swap! vs next)))
-         (first values)
          stream)))
 
 (defn constantly
   "Constantly map the same value over an event stream."
   [value stream]
-  (map (core/constantly value) value stream))
+  (map (core/constantly value) stream))
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
-  ([timeout-ms stream]
-     (throttle timeout-ms nil stream))
-  ([timeout-ms init stream]
-     (->> stream
-          (map (fn [x] [(System/currentTimeMillis) x]))
-          (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
-          (remove (fn [[dt _]] (>= timeout-ms dt)))
-          (map second init))))
+  [timeout-ms stream]
+  (->> stream
+       (map (fn [x] [(System/currentTimeMillis) x]))
+       (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
+       (remove (fn [[dt _]] (>= timeout-ms dt)))
+       (map second)))
 
 (defn- start-sampler
   [interval reference ^WeakReference stream-ref]

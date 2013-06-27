@@ -48,14 +48,14 @@
     (is (thrown? ClassCastException (r/push! f 1)))))
 
 (deftest test-mapcat
-  (let [s (r/event-stream)
+  (let [s (r/event-stream 0)
         e (r/mapcat (fn [x] [(inc x)]) s)]
     (r/push! s 1)
     (is (= 2 @e))))
 
 (deftest test-map
-  (let [s (r/event-stream)
-        e (r/map inc 1 s)]
+  (let [s (r/event-stream 0)
+        e (r/map inc s)]
     (is (= 1 @e))
     (r/push! s 1)
     (is (= 2 @e))))
@@ -115,13 +115,13 @@
 
 (deftest test-gc
   (testing "Derived maps"
-    (let [s (r/event-stream)
+    (let [s (r/event-stream 0)
           e (r/map inc (r/map inc s))]
       (System/gc)
       (r/push! s 1)
       (is (= @e 3))))
   (testing "Merge"
-    (let [s (r/event-stream)
+    (let [s (r/event-stream 0)
           e (r/merge (r/map inc s))]
       (System/gc)
       (r/push! s 1)
