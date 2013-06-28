@@ -11,7 +11,7 @@ stone. Things may change.
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.3.1"]
+    [reagi "0.4.0"]
 
 ## Documentation
 
