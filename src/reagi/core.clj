@@ -205,7 +205,7 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (->> stream
-       (reduce #(if (= (peek %1) %2) (conj %1 %2) [%2]) [])
+       (reduce #(if (= (peek %1) %2) [(peek %1) %2] [%2]) [])
        (filter #(= (core/count %) 1))
        (map first)))
 
