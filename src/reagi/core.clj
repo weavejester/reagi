@@ -183,7 +183,8 @@
   (filter #(= % (core/merge % partial)) stream))
 
 (defn reduce
-  "Reduce a stream with a function."
+  "Create a new stream by applying a function to the previous return value and
+  the current value of the source stream."
   ([f stream]
      (reduce f @stream stream))
   ([f init stream]
