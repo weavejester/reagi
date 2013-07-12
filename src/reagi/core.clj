@@ -50,7 +50,7 @@
 (defprotocol Observable
   (subscribe [stream observer] "Add an observer function to the stream."))
 
-(defn- weak-hash-map []
+(defn- ^java.util.Map weak-hash-map []
   (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
 
 (defn event-stream
