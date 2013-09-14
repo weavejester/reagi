@@ -127,6 +127,11 @@
     (subscribe stream stream*)
     (freeze stream* [stream])))
 
+(defn initial
+  "Give the event stream a new initial value."
+  [init stream]
+  (derive #(%1 %2) init stream))
+
 (defn- map* [f stream]
   (derive #(%1 (f %2)) (delay (f @stream)) stream))
 

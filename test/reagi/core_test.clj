@@ -47,6 +47,15 @@
     (is (r/frozen? f))
     (is (thrown? ClassCastException (r/push! f 1)))))
 
+(deftest test-initial
+  (let [e1 (r/event-stream :foo)
+        e2 (r/initial :bar e1)]
+    (is (= @e1 :foo))
+    (is (= @e2 :bar))
+    (r/push! e1 :baz)
+    (is (= @e1 :baz))
+    (is (= @e2 :baz))))
+
 (deftest test-zip
   (let [e1 (r/event-stream 0)
         e2 (r/event-stream 0)
