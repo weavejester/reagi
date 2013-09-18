@@ -2,32 +2,7 @@
   (:require [clojure.core :as core])
   (:import java.lang.ref.WeakReference)
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
-                            merge reduce cycle count dosync ensure]))
-
-(def ^:dynamic *cache* nil)
-
-(defmacro dosync
-  "Any event stream or behavior deref'ed within this block is guaranteed to
-  always return the same value."
-  [& body]
-  `(binding [*cache* (atom {})]
-     ~@body))
-
-(defn- cache-hit [cache key get-value]
-  (if (contains? cache key)
-    cache
-    (assoc cache key (get-value))))
-
-(defn- cache-lookup! [cache key get-value]
-  (-> (swap! cache cache-hit key get-value)
-      (get key)))
-
-(defn ensure
-  "Fix the value of a behavior of event stream within a dosync. Returns its
-  input."
-  [behavior-or-stream]
-  (when *cache* (deref behavior-or-stream))
-  behavior-or-stream)
+                            merge reduce cycle count]))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
@@ -35,15 +10,11 @@
   [func]
   (reify
     clojure.lang.IDeref
-    (deref [behavior]
-      (if *cache*
-        (cache-lookup! *cache* behavior func)
-        (func)))))
+    (deref [behavior] (func))))
 
 (defmacro behavior
-  "Takes a body of expressions and yields a Behavior object that will evaluate
-  the body each time it is dereferenced. All derefs of behaviors that happen
-  inside a containing behavior will be consistent."
+  "Takes a body of expressions and yields a behavior object that will evaluate
+  the body each time it is dereferenced."
   [& form]
   `(behavior-call (fn [] ~@form)))
 
@@ -59,22 +30,18 @@
   into the event stream, or the initial value if no values have been pushed."
   ([] (event-stream nil))
   ([init]
-     (let [observers    (weak-hash-map)
-           undefined    (Object.)
-           head         (atom undefined)
-           resolve-head #(let [value @head]
-                           (if (identical? value undefined)
-                             (force init)
-                             value))]
+     (let [observers (weak-hash-map)
+           undefined (Object.)
+           head      (atom undefined)]
        (reify
          clojure.lang.IDeref
          (deref [stream]
-           (if *cache*
-             (cache-lookup! *cache* stream resolve-head)
-             (resolve-head)))
+           (let [value @head]
+             (if (identical? value undefined)
+               (force init)
+               value)))
          clojure.lang.IFn
          (invoke [stream msg]
-           (ensure stream)
            (reset! head msg)
            (doseq [[observer _] observers]
              (observer msg)))

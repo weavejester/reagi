@@ -20,21 +20,6 @@
       (e 2)
       (is (= 2 @e)))))
 
-(deftest test-dosync
-  (testing "Behaviors"
-    (let [b (r/behavior (rand))]
-      (is (not= @b @b))
-      (r/dosync
-       (is (= @b @b)))))
-  (testing "Event streams"
-    (let [e (r/event-stream)]
-      (r/dosync
-        (r/push! e 1)
-        (let [x @e]
-          (r/push! e 2)
-          (is (= x @e))))
-      (is (= @e 2)))))
-
 (deftest test-push!
   (let [e (r/event-stream)]
     (r/push! e 1)
