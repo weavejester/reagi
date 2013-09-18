@@ -1,6 +1,7 @@
 (ns reagi.core
-  (:require [clojure.core :as core])
   (:import java.lang.ref.WeakReference)
+  (:require [clojure.core :as core]
+            [clojure.core.async :as async :refer (chan go <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count]))
 
@@ -32,7 +33,13 @@
   ([init]
      (let [observers (weak-hash-map)
            undefined (Object.)
-           head      (atom undefined)]
+           head      (atom undefined)
+           input     (chan)]
+       (go (loop []
+             (let [msg (<! input)]
+               (doseq [[ob _] observers]
+                 (ob msg))
+               (recur))))
        (reify
          clojure.lang.IDeref
          (deref [stream]
@@ -43,8 +50,7 @@
          clojure.lang.IFn
          (invoke [stream msg]
            (reset! head msg)
-           (doseq [[observer _] observers]
-             (observer msg)))
+           (go (>! input msg)))
          Observable
          (subscribe [stream observer]
            (.put observers observer true))))))
