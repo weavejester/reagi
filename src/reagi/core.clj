@@ -56,21 +56,15 @@
        (stream m))))
 
 (defn derive
-  "Derive a new event stream from another using an asynchronous handler
-  function. The handler should expect two arguments, an input and an output
-  channel."
-  [handler init stream]
+  "Derive an event stream from a core.async channel."
+  [init channel]
   (let [observers (weak-hash-map)
-        head      (atom init)
-        input     (chan)
-        output    (chan)]
-    (subscribe stream input)
-    (handler input output)
+        head      (atom init)]
     (go (loop []
-          (when-let [[msg] (<! output)]
+          (when-let [[msg] (<! channel)]
             (reset! head msg)
-            (doseq [[ob _] observers]
-              (>! ob msg))
+            (doseq [[ch _] observers]
+              (>! ch msg))
             (recur))))
     (reify
       clojure.lang.IDeref
@@ -80,8 +74,7 @@
         (.put observers ch true))
       Object
       (finalize [_]
-        (close! input)
-        (close! output)))))
+        (close! channel)))))
 
 (defn initial
   "Give the event stream a new initial value."
@@ -89,14 +82,15 @@
   (derive #(%1 %2) init stream))
 
 (defn map* [f stream]
-  (derive
-   (fn [in out]
-     (go (loop []
-           (when-let [[msg] (<! in)]
-             (>! out [(f msg)])
-             (recur)))))
-   (f @stream)
-   stream))
+  (let [in  (chan)
+        out (chan)]
+    (go (loop []
+          (if-let [[msg] (<! in)]
+            (do (>! out [(f msg)])
+                (recur))
+            (close! out))))
+    (subscribe stream in)
+    (derive (f @stream) out)))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
