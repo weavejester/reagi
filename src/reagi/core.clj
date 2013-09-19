@@ -20,7 +20,8 @@
   `(behavior-call (fn [] ~@form)))
 
 (defprotocol Observable
-  (subscribe [stream observer] "Add an observer function to the stream."))
+  (subscribe [stream channel]
+    "Assign a core.async channel to receive messages from a source of events."))
 
 (defn- ^java.util.Map weak-hash-map []
   (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
@@ -32,28 +33,18 @@
   ([] (event-stream nil))
   ([init]
      (let [observers (weak-hash-map)
-           undefined (Object.)
-           head      (atom undefined)
-           input     (chan)]
-       (go (loop []
-             (let [msg (<! input)]
-               (doseq [[ob _] observers]
-                 (ob msg))
-               (recur))))
+           head      (atom init)]
        (reify
          clojure.lang.IDeref
-         (deref [stream]
-           (let [value @head]
-             (if (identical? value undefined)
-               (force init)
-               value)))
+         (deref [_] @head)
          clojure.lang.IFn
-         (invoke [stream msg]
+         (invoke [_ msg]
            (reset! head msg)
-           (go (>! input msg)))
+           (doseq [[ob _] observers]
+             (go (>! ob msg))))
          Observable
-         (subscribe [stream observer]
-           (.put observers observer true))))))
+         (subscribe [_ ch]
+           (.put observers ch true))))))
 
 (defn push!
   "Push one or more messages onto the stream."
@@ -64,49 +55,42 @@
      (doseq [m (cons msg msgs)]
        (stream m))))
 
-(defn freeze
-  "Return a stream that can no longer be pushed to."
-  ([stream] (freeze stream nil))
-  ([stream parent-refs]
-     (reify
-       clojure.lang.IDeref
-       (deref [_] parent-refs @stream)
-       Observable
-       (subscribe [_ observer] (subscribe stream observer)))))
-
-(defn frozen?
-  "Returns true if the stream cannot be pushed to."
-  [stream]
-  (not (ifn? stream)))
-
-(defn- derived-stream
-  "Derive an event stream from a function."
-  [func init]
-  (let [stream (event-stream init)]
+(defn derive
+  "Derive a new event stream from another using an asynchronous function. The
+  function should expect two arguments, an input and an output channel."
+  [func init stream]
+  (let [observers (weak-hash-map)
+        head      (atom init)
+        input     (chan)
+        output    (chan)]
+    (subscribe stream input)
+    (func input output)
+    (go (loop []
+          (let [msg (<! output)]
+            (reset! head msg)
+            (doseq [[ob _] observers]
+              (>! ob msg)))
+          (recur)))
     (reify
       clojure.lang.IDeref
-      (deref [_] @stream)
-      clojure.lang.IFn
-      (invoke [_ msg] (func stream msg))
+      (deref [_] @head)
       Observable
-      (subscribe [_ observer] (subscribe stream observer)))))
-
-(defn derive
-  "Derive a new event stream from another and a function. The function will be
-  called each time the existing stream receives a message, and will have the
-  new stream and the message as arguments."
-  [func init stream]
-  (let [stream* (derived-stream func init)]
-    (subscribe stream stream*)
-    (freeze stream* [stream])))
+      (subscribe [_ ch]
+        (.put observers ch true)))))
 
 (defn initial
   "Give the event stream a new initial value."
   [init stream]
   (derive #(%1 %2) init stream))
 
-(defn- map* [f stream]
-  (derive #(%1 (f %2)) (delay (f @stream)) stream))
+(defn map* [f stream]
+  (derive
+   (fn [in out]
+     (go (loop []
+           (>! out (f (<! in)))
+           (recur))))
+   (f @stream)
+   stream))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
