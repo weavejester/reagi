@@ -1,7 +1,7 @@
 (ns reagi.core
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :as async :refer (chan go <! >! <!! >!!)])
+            [clojure.core.async :as async :refer (chan close! go <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count]))
 
@@ -41,7 +41,7 @@
          (invoke [_ msg]
            (reset! head msg)
            (doseq [[ob _] observers]
-             (go (>! ob msg))))
+             (go (>! ob [msg]))))
          Observable
          (subscribe [_ ch]
            (.put observers ch true))))))
@@ -56,27 +56,32 @@
        (stream m))))
 
 (defn derive
-  "Derive a new event stream from another using an asynchronous function. The
-  function should expect two arguments, an input and an output channel."
-  [func init stream]
+  "Derive a new event stream from another using an asynchronous handler
+  function. The handler should expect two arguments, an input and an output
+  channel."
+  [handler init stream]
   (let [observers (weak-hash-map)
         head      (atom init)
         input     (chan)
         output    (chan)]
     (subscribe stream input)
-    (func input output)
+    (handler input output)
     (go (loop []
-          (let [msg (<! output)]
+          (when-let [[msg] (<! output)]
             (reset! head msg)
             (doseq [[ob _] observers]
-              (>! ob msg)))
-          (recur)))
+              (>! ob msg))
+            (recur))))
     (reify
       clojure.lang.IDeref
       (deref [_] @head)
       Observable
       (subscribe [_ ch]
-        (.put observers ch true)))))
+        (.put observers ch true))
+      Object
+      (finalize [_]
+        (close! input)
+        (close! output)))))
 
 (defn initial
   "Give the event stream a new initial value."
@@ -87,8 +92,9 @@
   (derive
    (fn [in out]
      (go (loop []
-           (>! out (f (<! in)))
-           (recur))))
+           (when-let [[msg] (<! in)]
+             (>! out [(f msg)])
+             (recur)))))
    (f @stream)
    stream))
 
