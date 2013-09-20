@@ -133,19 +133,27 @@
   [& streams]
   (apply derive merge-chan nil streams))
 
-(comment
+(defn- zip-chan [init & ins]
+  (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
+        out   (chan)]
+    (go (loop [value init]
+          (let [[data in] (alts! ins)]
+            (if-let [[msg] data]
+              (let [value (assoc value (index in) msg)]
+                (do (>! out [value])
+                    (recur value)))
+              (close! out)))))
+    out))
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a
   vector will be pushed to the returned stream containing the latest events
   of all input streams."
   [& streams]
-  (let [indexed (core/map-indexed (fn [i s] (map* (fn [x] [i x]) s)) streams)
-        head    (atom (vec (core/map deref streams)))
-        stream* (derived-stream (fn [s [i x]] (s (swap! head assoc i x))) @head)]
-    (doseq [stream indexed]
-      (subscribe stream stream*))
-    (freeze stream* indexed)))
+  (let [init (mapv deref streams)]
+    (apply derive #(apply zip-chan init %&) init streams)))
+
+(comment
 
 (defn map
   "Map a function over a stream."
