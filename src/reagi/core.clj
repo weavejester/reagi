@@ -109,13 +109,10 @@
         (doseq [[_ i] inputs]
           (close! inputs))))))
 
-(defn map* [f init stream]
-  (derive #(map-chan f %) init stream))
-
 (defn initial
   "Give the event stream a new initial value."
   [init stream]
-  (map* identity init stream))
+  (derive #(map-chan identity %) init stream))
 
 (defn- merge-chan [& ins]
   (let [out (chan)]
@@ -153,14 +150,14 @@
   (let [init (mapv deref streams)]
     (apply derive #(apply zip-chan init %&) init streams)))
 
-(comment
-
 (defn map
   "Map a function over a stream."
   ([f stream]
-     (map* f stream))
+     (derive #(map-chan f %) (f @stream) stream))
   ([f stream & streams]
-     (map* (partial apply f) (apply zip stream streams))))
+     (map (partial apply f) (apply zip stream streams))))
+
+(comment
 
 (defn mapcat
   "Mapcat a function over a stream."
