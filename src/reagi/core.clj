@@ -196,7 +196,15 @@
   [partial stream]
   (filter #(= % (core/merge % partial)) stream))
 
-(comment
+(defn- reduce-chan [f init in]
+  (let [out (chan)]
+    (go (loop [val init]
+          (if-let [[msg] (<! in)]
+            (let [val (f val msg)]
+              (>! out [val])
+              (recur val))
+            (close! out))))
+    out))
 
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
@@ -204,8 +212,7 @@
   ([f stream]
      (reduce f @stream stream))
   ([f init stream]
-     (let [acc (atom init)]
-       (derive #(push! %1 (swap! acc f %2)) init stream))))
+     (derive #(reduce-chan f init %) init stream)))
 
 (defn count
   "Return an accumulating count of the items in a stream."
@@ -216,6 +223,8 @@
   "Change an initial value based on an event stream of functions."
   [init stream]
   (reduce #(%2 %1) init stream))
+
+(comment
 
 (defn uniq
   "Remove any successive duplicates from the stream."
