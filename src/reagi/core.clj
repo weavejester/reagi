@@ -35,7 +35,7 @@
 
 (defn- observable [channel]
   (let [observers (weak-hash-map)]
-    (distribute channel (core/map key observers))
+    (distribute channel (.keySet observers))
     (reify
       Observable
       (subscribe [_ ch]
