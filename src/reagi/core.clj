@@ -54,6 +54,23 @@
   (map-chan (fn [msg] (reset! head msg) msg)
             channel))
 
+;; reify creates an object twice, leading to the finalize method
+;; to be prematurely triggered. For this reason, we use a type.
+
+(deftype EventStream [head channel stream]
+  clojure.lang.IDeref
+  (deref [_] @head)
+  clojure.lang.IFn
+  (invoke [_ msg]
+    (>!! channel [msg])
+    msg)
+  Observable
+  (subscribe [_ ch]
+    (subscribe stream ch))
+  Object
+  (finalize [_]
+    (close! channel)))
+
 (defn event-stream
   "Create a new event stream with an optional initial value, which may be a
   delay. Calling deref on an event stream will return the last value pushed
@@ -63,19 +80,7 @@
      (let [channel (chan)
            head    (atom init)
            stream  (observable (track-head head channel))]
-       (reify
-         clojure.lang.IDeref
-         (deref [_] @head)
-         clojure.lang.IFn
-         (invoke [_ msg]
-           (>!! channel [msg])
-           msg)
-         Observable
-         (subscribe [_ ch]
-           (subscribe stream ch))
-         Object
-         (finalize [_]
-           (close! channel))))))
+       (EventStream. head channel stream))))
 
 (defn push!
   "Push one or more messages onto the stream."
@@ -86,28 +91,30 @@
      (doseq [m (cons msg msgs)]
        (stream m))))
 
+(deftype DerivedEventStream [head stream channels]
+  clojure.lang.IDeref
+  (deref [_] @head)
+  Observable
+  (subscribe [_ ch]
+    (subscribe stream ch))
+  Object
+  (finalize [x]
+    (doseq [c channels]
+      (close! c))))
+
 (defn derive
   "Derive a new event stream from a handler function, an initial value, and one
   or more parent streams. The handler should expect to receive an input channel
   for each stream as its argument, and should return an output channel."
   [handler init & parents]
-  (let [inputs (into {} (for [p parents] [p (chan)]))
-        output (apply handler (vals inputs))
-        head   (atom init)
-        stream (observable (track-head head output))]
+  (let [inputs   (into {} (for [p parents] [p (chan)]))
+        output   (apply handler (vals inputs))
+        head     (atom init)
+        stream   (observable (track-head head output))
+        channels (cons output (vals inputs))]
     (doseq [[p i] inputs]
       (subscribe p i))
-    (reify
-      clojure.lang.IDeref
-      (deref [_] parents @head)
-      Observable
-      (subscribe [_ ch]
-        (subscribe stream ch))
-      Object
-      (finalize [_]
-        (close! output)
-        (doseq [[_ i] inputs]
-          (close! inputs))))))
+    (DerivedEventStream. head stream channels)))
 
 (defn initial
   "Give the event stream a new initial value."
