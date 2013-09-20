@@ -1,7 +1,7 @@
 (ns reagi.core
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :as async :refer (chan close! go <! >! <!! >!!)])
+            [clojure.core.async :as async :refer (alts! chan close! go <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count]))
 
@@ -87,25 +87,27 @@
        (stream m))))
 
 (defn derive
-  "Derive a new event stream from a parent stream, an initial value, and a
-  handler function. The handler should expect to receive an input channel as its
-  argument, and return an output channel."
-  [handler init parent]
-  (let [input  (chan)
-        output (handler input)
+  "Derive a new event stream from a handler function, an initial value, and one
+  or more parent streams. The handler should expect to receive an input channel
+  for each stream as its argument, and should return an output channel."
+  [handler init & parents]
+  (let [inputs (into {} (for [p parents] [p (chan)]))
+        output (apply handler (vals inputs))
         head   (atom init)
         stream (observable (track-head head output))]
-    (subscribe parent input)
+    (doseq [[p i] inputs]
+      (subscribe p i))
     (reify
       clojure.lang.IDeref
-      (deref [_] parent @head)
+      (deref [_] parents @head)
       Observable
       (subscribe [_ ch]
         (subscribe stream ch))
       Object
       (finalize [_]
-        (close! input)
-        (close! output)))))
+        (close! output)
+        (doseq [[_ i] inputs]
+          (close! inputs))))))
 
 (defn map* [f init stream]
   (derive #(map-chan f %) init stream))
@@ -115,16 +117,23 @@
   [init stream]
   (map* identity init stream))
 
-(comment
+(defn- merge-chan [& ins]
+  (let [out (chan)]
+    (go (loop []
+          (let [[msg _] (alts! ins)]
+            (if msg
+              (do (>! out msg)
+                  (recur))
+              (close! out)))))
+    out))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
   [& streams]
-  (let [stream* (event-stream)]
-    (doseq [stream streams]
-      (subscribe stream stream*))
-    (freeze stream* streams)))
+  (apply derive merge-chan nil streams))
+
+(comment
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a
