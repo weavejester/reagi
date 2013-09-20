@@ -76,21 +76,20 @@
       (finalize [_]
         (close! channel)))))
 
-(defn initial
-  "Give the event stream a new initial value."
-  [init stream]
-  (derive #(%1 %2) init stream))
-
-(defn map* [f stream]
-  (let [in  (chan)
-        out (chan)]
+(defn map* [f init stream]
+  (let [in (chan), out (chan)]
     (go (loop []
           (if-let [[msg] (<! in)]
             (do (>! out [(f msg)])
                 (recur))
             (close! out))))
     (subscribe stream in)
-    (derive (f @stream) out)))
+    (derive init out)))
+
+(defn initial
+  "Give the event stream a new initial value."
+  [init stream]
+  (map* identity init stream))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
