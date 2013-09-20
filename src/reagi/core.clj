@@ -68,7 +68,7 @@
          (deref [_] @head)
          clojure.lang.IFn
          (invoke [_ msg]
-           (go (>! channel [msg]))
+           (>!! channel [msg])
            msg)
          Observable
          (subscribe [_ ch]
