@@ -157,14 +157,20 @@
   ([f stream & streams]
      (map (partial apply f) (apply zip stream streams))))
 
-(comment
+(defn- mapcat-chan [f in]
+  (let [out (chan)]
+    (go (loop []
+          (if-let [[msg] (<! in)]
+            (let [xs (f msg)]
+              (doseq [x xs] (>! out [x]))
+              (recur))
+            (close! out))))
+    out))
 
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
-     (derive #(apply push! %1 (f %2))
-             (delay (last (f @stream)))
-             stream))
+     (derive #(mapcat-chan f %) (last (f @stream)) stream))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -182,6 +188,8 @@
   "Filter a stream by matching part of a map against a message."
   [partial stream]
   (filter #(= % (core/merge % partial)) stream))
+
+(comment
 
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
