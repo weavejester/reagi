@@ -261,8 +261,8 @@
   [channel reference interval ^WeakReference stream-ref]
   (go (loop []
         (<! (timeout interval))
-        (>! channel [@reference])
-        (if (.get stream-ref)
+        (when (.get stream-ref)
+          (>! channel [@reference])
           (recur)))))
 
 (defn sample
