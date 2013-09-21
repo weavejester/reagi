@@ -23,7 +23,7 @@
 
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
-  (Thread/sleep 20))
+  (Thread/sleep (* 10 (count msgs))))
 
 (deftest test-push!
   (let [e (r/event-stream 0)]
@@ -127,6 +127,7 @@
   (let [s (r/event-stream nil)
         e (r/throttle 100 s)]
     (r/push! s 1 2)
+    (Thread/sleep 20)
     (is (= @e 1))
     (Thread/sleep 101)
     (r/push! s 3)
