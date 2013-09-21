@@ -88,13 +88,6 @@
       (r/push! s2 3)
       (is (= @e 5)))))
 
-(deftest test-filter-by
-  (let [s (r/event-stream)
-        e (r/filter-by {:type :key-pressed} s)]
-    (r/push! s {:type :key-pressed :key :a})
-    (r/push! s {:type :key-released :key :a})
-    (is (= @e {:type :key-pressed :key :a}))))
-
 (deftest test-uniq
   (let [s (r/event-stream)
         e (r/reduce + 0 (r/uniq s))]

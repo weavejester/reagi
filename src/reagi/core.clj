@@ -196,11 +196,6 @@
   [pred stream]
   (filter (complement pred) stream))
 
-(defn filter-by
-  "Filter a stream by matching part of a map against a message."
-  [partial stream]
-  (filter #(= % (core/merge % partial)) stream))
-
 (defn- reduce-chan [f init in]
   (let [out (chan)]
     (go (loop [val init]
