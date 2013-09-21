@@ -164,6 +164,11 @@
   ([f stream & streams]
      (map (partial apply f) (apply zip stream streams))))
 
+(defn constantly
+  "Constantly map the same value over an event stream."
+  [value stream]
+  (map (core/constantly value) stream))
+
 (defn- mapcat-chan [f in]
   (let [out (chan)]
     (go (loop []
@@ -249,11 +254,6 @@
   (let [vs (atom (cons nil (core/cycle values)))]
     (map (fn [_] (first (swap! vs next)))
          stream)))
-
-(defn constantly
-  "Constantly map the same value over an event stream."
-  [value stream]
-  (map (core/constantly value) stream))
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
