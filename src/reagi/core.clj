@@ -72,15 +72,14 @@
     (close! channel)))
 
 (defn event-stream
-  "Create a new event stream with an optional initial value, which may be a
-  delay. Calling deref on an event stream will return the last value pushed
-  into the event stream, or the initial value if no values have been pushed."
-  ([] (event-stream nil))
-  ([init]
-     (let [channel (chan)
-           head    (atom init)
-           stream  (observable (track-head head channel))]
-       (EventStream. head channel stream))))
+  "Create a new event stream with an initial value. Calling deref on an event
+  stream will return the last value pushed into the event stream, or the initial
+  value if no values have been pushed."
+  [init]
+  (let [channel (chan)
+        head    (atom init)
+        stream  (observable (track-head head channel))]
+    (EventStream. head channel stream)))
 
 (defn push!
   "Push one or more messages onto the stream."

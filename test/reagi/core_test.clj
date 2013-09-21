@@ -11,10 +11,9 @@
 
 (deftest test-event-stream
   (testing "Initial value"
-    (is (nil? @(r/event-stream)))
     (is (= 1 @(r/event-stream 1))))
   (testing "Push"
-    (let [e (r/event-stream)]
+    (let [e (r/event-stream 0)]
       (e 1)
       (Thread/sleep 20)
       (is (= 1 @e))
@@ -27,7 +26,7 @@
   (Thread/sleep 20))
 
 (deftest test-push!
-  (let [e (r/event-stream)]
+  (let [e (r/event-stream 0)]
     (push!! e 1)
     (is (= 1 @e))
     (push!! e 2 3 4)
@@ -79,11 +78,6 @@
       (is (= 1 @e))
       (push!! s 1)
       (is (= 2 @e))))
-  (testing "No initial value"
-    (let [s (r/event-stream)
-          e (r/mapcat (comp list inc) s)]
-      (push!! s 1)
-      (is (= 2 @e))))
   (testing "Multiple streams"
     (let [s1 (r/event-stream 0)
           s2 (r/event-stream 0)
@@ -95,7 +89,7 @@
       (is (= @e 5)))))
 
 (deftest test-uniq
-  (let [s (r/event-stream)
+  (let [s (r/event-stream nil)
         e (r/reduce + 0 (r/uniq s))]
     (push!! s 1 1)
     (is (= 1 @e))
@@ -103,7 +97,7 @@
     (is (= 3 @e))))
 
 (deftest test-count
-  (let [e (r/event-stream)
+  (let [e (r/event-stream nil)
         c (r/count e)]
     (is (= @c 0))
     (push!! e 1)
@@ -112,7 +106,7 @@
     (is (= @c 3))))
 
 (deftest test-cycle
-  (let [s (r/event-stream)
+  (let [s (r/event-stream nil)
         e (r/cycle [:on :off] s)]
     (is (= :on @e))
     (push!! s 1)
@@ -121,7 +115,7 @@
     (is (= :on @e))))
 
 (deftest test-constantly
-  (let [s (r/event-stream)
+  (let [s (r/event-stream nil)
         e (r/constantly 1 s)
         a (r/reduce + 0 e)]
     (is (= @e 1))
@@ -130,7 +124,7 @@
     (is (= @a 3))))
 
 (deftest test-throttle
-  (let [s (r/event-stream)
+  (let [s (r/event-stream nil)
         e (r/throttle 100 s)]
     (r/push! s 1 2)
     (is (= @e 1))
@@ -161,7 +155,7 @@
       (is (= @e [2 0]))))
   (testing "GC unreferenced streams"
     (let [a (atom nil)
-          s (r/event-stream)]
+          s (r/event-stream nil)]
       (r/map #(reset! a %) s)
       (System/gc)
       (push!! s 1)
