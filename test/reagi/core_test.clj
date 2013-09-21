@@ -27,11 +27,6 @@
     (r/push! e 2 3 4)
     (is (= 4 @e))))
 
-(deftest test-freeze
-  (let [f (r/freeze (r/event-stream))]
-    (is (r/frozen? f))
-    (is (thrown? ClassCastException (r/push! f 1)))))
-
 (deftest test-initial
   (let [e1 (r/event-stream :foo)
         e2 (r/initial :bar e1)]
