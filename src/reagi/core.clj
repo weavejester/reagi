@@ -3,7 +3,7 @@
   (:require [clojure.core :as core]
             [clojure.core.async :refer (alts! chan close! go timeout <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
-                            merge reduce cycle count]))
+                            merge reduce cycle count delay]))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
@@ -274,3 +274,18 @@
         stream   (DerivedEventStream. head observed nil)]
     (start-sampler channel reference interval-ms (WeakReference. stream))
     stream))
+
+(defn- delay-chan [delay-ms in]
+  (let [out (chan)]
+    (go (loop []
+          (if-let [msg (<! in)]
+            (do (<! (timeout delay-ms))
+                (>! out msg)
+                (recur))
+            (close! out))))
+    out))
+
+(defn delay
+  "Delay all events by the specified number of milliseconds."
+  [delay-ms stream]
+  (derive #(delay-chan delay-ms %) @stream stream))
