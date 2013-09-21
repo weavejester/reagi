@@ -245,15 +245,14 @@
   (let [init @stream]
     (derive #(uniq-chan init %) init stream)))
 
-(comment
-
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
-  (let [vs (atom (cons nil (core/cycle values)))]
-    (map (fn [_] (first (swap! vs next)))
-         stream)))
+  (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
+       (map first)))
+
+(comment
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
