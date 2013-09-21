@@ -1,7 +1,7 @@
 (ns reagi.core
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :as async :refer (alts! chan close! go <! >! <!! >!!)])
+            [clojure.core.async :refer (alts! chan close! go timeout <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count]))
 
@@ -252,8 +252,6 @@
   (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
        (map first)))
 
-(comment
-
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
@@ -265,21 +263,20 @@
        (map second)))
 
 (defn- start-sampler
-  [interval reference ^WeakReference stream-ref]
-  (future
-    (loop []
-      (when-let [stream (.get stream-ref)]
-        (push! stream @reference)
-        (Thread/sleep interval)
-        (recur)))))
+  [channel reference interval ^WeakReference stream-ref]
+  (go (loop []
+        (<! (timeout interval))
+        (>! channel [@reference])
+        (if (.get stream-ref)
+          (recur)))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
-  The interval time is specified in milliseconds. A background thread is started
-  by this function that will persist until the return value is GCed."
+  The interval time is specified in milliseconds."
   [interval-ms reference]
-  (let [stream (event-stream @reference)]
-    (start-sampler interval-ms reference (WeakReference. stream))
+  (let [head     (atom @reference)
+        channel  (chan)
+        observed (observable (track-head head channel))
+        stream   (DerivedEventStream. head observed nil)]
+    (start-sampler channel reference interval-ms (WeakReference. stream))
     stream))
-
-)
