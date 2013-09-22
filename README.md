@@ -2,16 +2,18 @@
 
 [![Build Status](https://travis-ci.org/weavejester/reagi.png?branch=master)](https://travis-ci.org/weavejester/reagi)
 
-An experimental [FRP][1] library for Clojure. The API is not fixed in
-stone. Things may change.
+An experimental [FRP][1] library for Clojure based on [core.async][2].
+
+Note that the API is not yet fixed in stone, and may change.
 
 [1]: http://en.wikipedia.org/wiki/Functional_reactive_programming
+[2]: https://github.com/clojure/core.async
 
 ## Installation
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.4.1"]
+    [reagi "0.5.0-SNAPSHOT"]
 
 ## Documentation
 
@@ -43,8 +45,10 @@ An event stream is a discrete stream of events. Calling deref on an
 event stream will return the latest event pushed to the stream.
 
 ```clojure
-user=> (def e (r/event-stream))
+user=> (def e (r/event-stream 0))
 #'user/e
+user=> @e
+0
 user=> (r/push! e 1)
 nil
 user=> @e
