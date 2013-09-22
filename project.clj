@@ -7,4 +7,4 @@
                  [org.clojure/core.async "0.1.222.0-83d0c2-alpha"]]
   :plugins [[codox "0.6.4"]]
   :profiles
-  {:dev {:dependencies [[criterium "0.4.1"]]}})
+  {:dev {:dependencies [[criterium "0.4.2"]]}})
