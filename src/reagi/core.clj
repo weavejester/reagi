@@ -19,7 +19,7 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
-(defprotocol Observable
+(defprotocol ^:no-doc Observable
   (subscribe [stream channel]
     "Assign a core.async channel to receive messages from a source of events."))
 
