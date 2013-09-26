@@ -23,29 +23,20 @@
   (subscribe [stream channel]
     "Assign a core.async channel to receive messages from a source of events."))
 
-(defn- weak-set []
-  (java.util.Collections/newSetFromMap (java.util.WeakHashMap.)))
-
-(defn- sync-put! [^java.util.Set s k]
-  (locking s (.add s k)))
-
-(defn- sync-set [s]
-  (locking s (into #{} s)))
-
 (defn- distribute [input outputs]
   (go (loop []
         (when-let [[msg] (<! input)]
-          (doseq [out (sync-set outputs)]
+          (doseq [out @outputs]
             (>! out [msg]))
           (recur)))))
 
 (defn- observable [channel]
-  (let [observers (weak-set)]
+  (let [observers (atom #{})]
     (distribute channel observers)
     (reify
       Observable
       (subscribe [_ ch]
-        (sync-put! observers ch)))))
+        (swap! observers conj ch)))))
 
 (defn- map-chan [f in]
   (let [out (chan)]
@@ -105,7 +96,7 @@
   (subscribe [_ ch]
     (subscribe stream ch))
   Object
-  (finalize [x]
+  (finalize [_]
     (doseq [c channels]
       (close! c))))
 
