@@ -13,7 +13,7 @@ Note that the API is not yet fixed in stone, and may change.
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.5.0"]
+    [reagi "0.5.1"]
 
 ## Documentation
 
