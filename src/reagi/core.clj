@@ -123,32 +123,6 @@
 
 (comment
 
-(deftype EventStream [head channel stream]
-  clojure.lang.IDeref
-  (deref [_] @head)
-  clojure.lang.IFn
-  (invoke [_ msg]
-    (>!! channel [msg])
-    msg)
-  Observable
-  (subscribe [_ ch]
-    (subscribe stream ch))
-  Object
-  (finalize [_]
-    (close! channel)))
-
-(alter-meta! #'->EventStream assoc :no-doc true)
-
-(defn event-stream
-  "Create a new event stream with an initial value. Calling deref on an event
-  stream will return the last value pushed into the event stream, or the initial
-  value if no values have been pushed."
-  [init]
-  (let [channel (chan)
-        head    (atom init)
-        stream  (observable (track-head head channel))]
-    (EventStream. head channel stream)))
-
 (defn push!
   "Push one or more messages onto the stream."
   ([stream])
@@ -157,38 +131,6 @@
   ([stream msg & msgs]
      (doseq [m (cons msg msgs)]
        (stream m))))
-
-(deftype DerivedEventStream [head stream channels]
-  clojure.lang.IDeref
-  (deref [_] @head)
-  Observable
-  (subscribe [_ ch]
-    (subscribe stream ch))
-  Object
-  (finalize [_]
-    (doseq [c channels]
-      (close! c))))
-
-(alter-meta! #'->DerivedEventStream assoc :no-doc true)
-
-(defn derive
-  "Derive a new event stream from a handler function, an initial value, and one
-  or more parent streams. The handler should expect to receive an input channel
-  for each stream as its argument, and should return an output channel."
-  [handler init & parents]
-  (let [inputs   (into {} (for [p parents] [p (chan)]))
-        output   (apply handler (vals inputs))
-        head     (atom init)
-        stream   (observable (track-head head output))
-        channels (cons output (vals inputs))]
-    (doseq [[p i] inputs]
-      (subscribe p i))
-    (DerivedEventStream. head stream channels)))
-
-(defn initial
-  "Give the event stream a new initial value."
-  [init stream]
-  (derive #(map-chan identity %) init stream))
 
 (defn- merge-chan [& ins]
   (let [out (chan)]
