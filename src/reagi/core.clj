@@ -1,7 +1,7 @@
 (ns reagi.core
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :refer (alts! chan close! go timeout <! >! <!! >!!)])
+            [clojure.core.async :refer (alts! alts!! chan close! go timeout <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count delay]))
 
@@ -43,11 +43,15 @@
       (sub [_ ch]   (swap! observers conj ch))
       (unsub [_ ch] (swap! observers disj ch)))))
 
-(defn- peek!! [ob]
+(defn- peek!! [ob time-ms]
   (let [ch (chan)]
     (sub ob ch)
-    (try (<!! ch)
-         (finally (unsub ob ch)))))
+    (try
+      (if time-ms
+        (first (alts!! [ch (timeout time-ms)]))
+        (<!! ch))
+      (finally
+        (unsub ob ch)))))
 
 (defn evt
   "Create an event suitable to be pushed onto a channel."
@@ -57,14 +61,22 @@
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
+(defn- deref-events [ob head ms timeout-val]
+  (if-let [hd @head]
+    (second hd)
+    (if-let [val (peek!! ob ms)]
+      (second val)
+      timeout-val)))
+
 (deftype Events [ch closed? clean-up ob head]
   clojure.lang.IPending
   (isRealized [_] (not (nil? @head)))
   clojure.lang.IDeref
-  (deref [_]
-    (if-let [hd @head]
-      (second hd)
-      (second (peek!! ob))))
+  (deref [self]
+    (deref-events ob head nil nil))
+  clojure.lang.IBlockingDeref
+  (deref [_ ms timeout-val]
+    (deref-events ob head ms timeout-val))
   clojure.lang.IFn
   (invoke [stream msg]
     (if closed?
