@@ -269,26 +269,24 @@
   (let [ch (sub-chan stream)]
     (events (throttle-ch timeout-ms ch) true #(close! ch))))
 
-(comment
-
-(defn- start-sampler
-  [channel reference interval ^WeakReference stream-ref]
+(defn- run-sampler
+  [ch ref interval stop?]
   (go (loop []
         (<! (timeout interval))
-        (when (.get stream-ref)
-          (>! channel [@reference])
+        (when-not @stop?
+          (>! ch (evt @ref))
           (recur)))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
   The interval time is specified in milliseconds."
   [interval-ms reference]
-  (let [head     (atom @reference)
-        channel  (chan)
-        observed (observable (track-head head channel))
-        stream   (DerivedEventStream. head observed nil)]
-    (start-sampler channel reference interval-ms (WeakReference. stream))
-    stream))
+  (let [ch    (chan)
+        stop? (atom false)]
+    (run-sampler ch reference interval-ms stop?)
+    (events ch true #(reset! stop? true))))
+
+(comment
 
 (defn- delay-chan [delay-ms in]
   (let [out (chan)]
