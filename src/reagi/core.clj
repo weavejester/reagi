@@ -107,17 +107,21 @@
        (sub ob (track head))
        (Events. ch closed? clean-up ob head))))
 
-(comment
-
-(defn- map-chan [f in]
+(defn- map-ch [f ch]
   (let [out (chan)]
     (go (loop []
-          (if-let [[msg] (<! in)]
-            (do (>! out [(f msg)])
+          (if-let [[t val] (<! ch)]
+            (do (>! out [t (f val)])
                 (recur))
             (close! out))))
     out))
 
+(defn map [f stream]
+  (let [ch (chan)]
+    (sub stream ch)
+    (events (map-ch f ch) true #(close! ch))))
+
+(comment
 
 (deftype EventStream [head channel stream]
   clojure.lang.IDeref
