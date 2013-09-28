@@ -107,6 +107,15 @@
        (sub ob (track head))
        (Events. ch closed? clean-up ob head))))
 
+(defn push!
+  "Push one or more messages onto the stream."
+  ([stream])
+  ([stream msg]
+     (stream msg))
+  ([stream msg & msgs]
+     (doseq [m (cons msg msgs)]
+       (stream m))))
+
 (defn- map-ch [f ch]
   (let [out (chan)]
     (go (loop []
@@ -122,15 +131,6 @@
     (events (map-ch f ch) true #(close! ch))))
 
 (comment
-
-(defn push!
-  "Push one or more messages onto the stream."
-  ([stream])
-  ([stream msg]
-     (stream msg))
-  ([stream msg & msgs]
-     (doseq [m (cons msg msgs)]
-       (stream m))))
 
 (defn- merge-chan [& ins]
   (let [out (chan)]
