@@ -130,23 +130,16 @@
     (sub stream ch)
     (events (map-ch f ch) true #(close! ch))))
 
-(comment
-
-(defn- merge-chan [& ins]
-  (let [out (chan)]
-    (go (loop []
-          (let [[msg _] (alts! ins)]
-            (if msg
-              (do (>! out msg)
-                  (recur))
-              (close! out)))))
-    out))
-
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
   [& streams]
-  (apply derive merge-chan nil streams))
+  (let [ch (chan)]
+    (doseq [s streams]
+      (sub s ch))
+    (events ch true #(close! ch))))
+
+(comment
 
 (defn- zip-chan [init & ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
