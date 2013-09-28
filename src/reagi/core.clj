@@ -58,6 +58,8 @@
 ;; to be prematurely triggered. For this reason, we use a type.
 
 (deftype Events [ch closed? clean-up ob head]
+  clojure.lang.IPending
+  (isRealized [_] (not (nil? @head)))
   clojure.lang.IDeref
   (deref [_]
     (if-let [hd @head]
