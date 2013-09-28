@@ -54,26 +54,44 @@
   [msg]
   [(System/nanoTime) msg])
 
+;; reify creates an object twice, leading to the finalize method
+;; to be prematurely triggered. For this reason, we use a type.
+
+(deftype Events [ch closed? clean-up ob head]
+  clojure.lang.IDeref
+  (deref [_]
+    (if-let [hd @head]
+      (second hd)
+      (second (peek!! ob))))
+  clojure.lang.IFn
+  (invoke [stream msg]
+    (if closed?
+      (throw (UnsupportedOperationException. "Cannot push to closed event stream"))
+      (do (>!! ch (evt msg))
+          stream)))
+  Observable
+  (sub [_ c] (sub ob c))
+  (unsub [_ c] (unsub ob c))
+  Object
+  (finalize [_] (clean-up)))
+
+(alter-meta! #'->Events assoc :no-doc true)
+
+(defn- no-op [])
+
 (defn events
   "Create an referential stream of events."
-  []
-  (let [ch   (chan)
-        ob   (observable ch)
-        head (atom nil)]
-    (sub ob (track head))
-    (reify
-      clojure.lang.IDeref
-      (deref [_]
-        (if-let [hd @head]
-          (second hd)
-          (second (peek!! ob))))
-      clojure.lang.IFn
-      (invoke [stream msg]
-        (>!! ch (evt msg))
-        stream)
-      Observable
-      (sub [_ c] (sub ob c))
-      (unsub [_ c] (unsub ob c)))))
+  ([]
+     (events (chan)))
+  ([ch]
+     (events ch false))
+  ([ch closed?]
+     (events ch closed? no-op))
+  ([ch closed? clean-up]
+     (let [ob   (observable ch)
+           head (atom nil)]
+       (sub ob (track head))
+       (Events. ch closed? clean-up ob head))))
 
 (comment
 
@@ -86,8 +104,6 @@
             (close! out))))
     out))
 
-;; reify creates an object twice, leading to the finalize method
-;; to be prematurely triggered. For this reason, we use a type.
 
 (deftype EventStream [head channel stream]
   clojure.lang.IDeref
