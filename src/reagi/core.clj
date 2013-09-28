@@ -286,14 +286,12 @@
     (run-sampler ch reference interval-ms stop?)
     (events ch true #(reset! stop? true))))
 
-(comment
-
-(defn- delay-chan [delay-ms in]
+(defn- delay-ch [delay-ms ch]
   (let [out (chan)]
     (go (loop []
-          (if-let [msg (<! in)]
+          (if-let [val (<! ch)]
             (do (<! (timeout delay-ms))
-                (>! out msg)
+                (>! out val)
                 (recur))
             (close! out))))
     out))
@@ -301,6 +299,5 @@
 (defn delay
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
-  (derive #(delay-chan delay-ms %) @stream stream))
-
-)
+  (let [ch (sub-chan stream)]
+    (events (delay-ch delay-ms ch) true #(close! ch))))
