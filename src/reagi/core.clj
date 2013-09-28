@@ -19,24 +19,63 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
-(defprotocol ^:no-doc Observable
-  (subscribe [stream channel]
-    "Assign a core.async channel to receive messages from a source of events."))
+(defn- track [head]
+  (let [ch (chan)]
+    (go (loop []
+          (when-let [m (<! ch)]
+            (reset! head m)
+            (recur))))
+    ch))
 
-(defn- distribute [input outputs]
-  (go (loop []
-        (when-let [[msg] (<! input)]
-          (doseq [out @outputs]
-            (>! out [msg]))
-          (recur)))))
+(defprotocol ^:no-doc Observable
+  (sub [observable channel])
+  (unsub [observable channel]))
 
 (defn- observable [channel]
   (let [observers (atom #{})]
-    (distribute channel observers)
+    (go (loop []
+          (when-let [m (<! channel)]
+            (doseq [o @observers]
+              (>! o m))
+            (recur))))
     (reify
       Observable
-      (subscribe [_ ch]
-        (swap! observers conj ch)))))
+      (sub [_ ch]   (swap! observers conj ch))
+      (unsub [_ ch] (swap! observers disj ch)))))
+
+(defn- peek!! [ob]
+  (let [ch (chan)]
+    (sub ob ch)
+    (try (<!! ch)
+         (finally (unsub ob ch)))))
+
+(defn evt
+  "Create an event suitable to be pushed onto a channel."
+  [msg]
+  [(System/nanoTime) msg])
+
+(defn events
+  "Create an referential stream of events."
+  []
+  (let [ch   (chan)
+        ob   (observable ch)
+        head (atom nil)]
+    (sub ob (track head))
+    (reify
+      clojure.lang.IDeref
+      (deref [_]
+        (if-let [hd @head]
+          (second hd)
+          (second (peek!! ob))))
+      clojure.lang.IFn
+      (invoke [stream msg]
+        (>!! ch (evt msg))
+        stream)
+      Observable
+      (sub [_ c] (sub ob c))
+      (unsub [_ c] (unsub ob c)))))
+
+(comment
 
 (defn- map-chan [f in]
   (let [out (chan)]
@@ -46,10 +85,6 @@
                 (recur))
             (close! out))))
     out))
-
-(defn- track-head [head channel]
-  (map-chan (fn [msg] (reset! head msg) msg)
-            channel))
 
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
@@ -290,3 +325,5 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (derive #(delay-chan delay-ms %) @stream stream))
+
+)
