@@ -139,27 +139,38 @@
       (sub s ch))
     (events ch true #(close! ch))))
 
-(comment
-
-(defn- zip-chan [init & ins]
+(defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
-        out   (chan)]
-    (go (loop [value init]
+        out   (chan)
+        undef (Object.)]
+    (go (loop [value (mapv (core/constantly undef) ins)]
           (let [[data in] (alts! ins)]
-            (if-let [[msg] data]
-              (let [value (assoc value (index in) msg)]
-                (do (>! out [value])
+            (if-let [[t v] data]
+              (let [value (assoc value (index in) v)]
+                (do (if (every? #(not= % undef) value)
+                      (>! out [t value]))
                     (recur value)))
               (close! out)))))
     out))
+
+(defn- sub-chan [stream]
+  (let [ch (chan)]
+    (sub stream ch)
+    ch))
+
+(defn- close-all! [chs]
+  (doseq [ch chs]
+    (close! ch)))
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a
   vector will be pushed to the returned stream containing the latest events
   of all input streams."
   [& streams]
-  (let [init (mapv deref streams)]
-    (apply derive #(apply zip-chan init %&) init streams)))
+  (let [chs (mapv sub-chan streams)]
+    (events (zip-ch chs) true #(close-all! chs))))
+
+(comment
 
 (defn map
   "Map a function over a stream."
