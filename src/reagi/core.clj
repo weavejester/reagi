@@ -43,9 +43,13 @@
       (sub [_ ch]   (swap! observers conj ch))
       (unsub [_ ch] (swap! observers disj ch)))))
 
-(defn- peek!! [ob time-ms]
+(defn tap [ob]
   (let [ch (chan)]
     (sub ob ch)
+    ch))
+
+(defn- peek!! [ob time-ms]
+  (let [ch (tap ob)]
     (try
       (if time-ms
         (first (alts!! [ch (timeout time-ms)]))
@@ -143,11 +147,6 @@
               (close! out)))))
     out))
 
-(defn- sub-chan [stream]
-  (let [ch (chan)]
-    (sub stream ch)
-    ch))
-
 (defn- close-all! [chs]
   (doseq [ch chs]
     (close! ch)))
@@ -157,7 +156,7 @@
   vector will be pushed to the returned stream containing the latest events
   of all input streams."
   [& streams]
-  (let [chs (mapv sub-chan streams)]
+  (let [chs (mapv tap streams)]
     (events (zip-ch chs) true #(close-all! chs))))
 
 (defn- mapcat-ch [f in]
@@ -173,7 +172,7 @@
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
-     (let [ch (sub-chan stream)]
+     (let [ch (tap stream)]
        (events (mapcat-ch f ch) true #(close! ch))))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
@@ -216,7 +215,7 @@
   ([f stream]
      (reduce f undefined stream))
   ([f init stream]
-     (let [ch (sub-chan stream)]
+     (let [ch (tap stream)]
        (events (reduce-ch f init ch) true #(close! ch)))))
 
 (defn count
@@ -242,7 +241,7 @@
 (defn uniq
   "Remove any successive duplicates from the stream."
   [stream]
-  (let [ch (sub-chan stream)]
+  (let [ch (tap stream)]
     (events (uniq-ch ch) true #(close! ch))))
 
 (defn cycle
@@ -266,7 +265,7 @@
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
   [timeout-ms stream]
-  (let [ch (sub-chan stream)]
+  (let [ch (tap stream)]
     (events (throttle-ch timeout-ms ch) true #(close! ch))))
 
 (defn- run-sampler
@@ -299,5 +298,5 @@
 (defn delay
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
-  (let [ch (sub-chan stream)]
+  (let [ch (tap stream)]
     (events (delay-ch delay-ms ch) true #(close! ch))))
