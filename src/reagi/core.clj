@@ -125,15 +125,19 @@
       (sub s ch))
     (events ch true #(close! ch))))
 
+(def ^:private undefined (Object.))
+
+(defn- undefined? [x]
+  (identical? x undefined))
+
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
-        out   (chan)
-        undef (Object.)]
-    (go (loop [value (mapv (core/constantly undef) ins)]
+        out   (chan)]
+    (go (loop [value (mapv (core/constantly undefined) ins)]
           (let [[data in] (alts! ins)]
             (if-let [[t v] data]
               (let [value (assoc value (index in) v)]
-                (do (if (every? #(not= % undef) value)
+                (do (if-not (some undefined? value)
                       (>! out [t value]))
                     (recur value)))
               (close! out)))))
@@ -194,15 +198,15 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(comment
- 
-(defn- reduce-chan [f init in]
+(defn- reduce-ch [f init in]
   (let [out (chan)]
-    (go (loop [val init]
-          (if-let [[msg] (<! in)]
-            (let [val (f val msg)]
-              (>! out [val])
-              (recur val))
+    (go (loop [acc init]
+          (if-let [[t val] (<! in)]
+            (if (undefined? acc)
+              (recur val)
+              (let [val (f acc val)]
+                (>! out [t val])
+                (recur val)))
             (close! out))))
     out))
 
@@ -210,9 +214,10 @@
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
   ([f stream]
-     (reduce f @stream stream))
+     (reduce f undefined stream))
   ([f init stream]
-     (derive #(reduce-chan f init %) init stream)))
+     (let [ch (sub-chan stream)]
+       (events (reduce-ch f init ch) true #(close! ch)))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
@@ -223,6 +228,8 @@
   "Change an initial value based on an event stream of functions."
   [init stream]
   (reduce #(%2 %1) init stream))
+
+(comment
 
 (defn- uniq-chan [init in]
   (let [out (chan)]
