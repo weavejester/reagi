@@ -245,14 +245,14 @@
   (let [ch (sub-chan stream)]
     (events (uniq-ch ch) true #(close! ch))))
 
-(comment
-
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
   (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
        (map first)))
+
+(comment
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
