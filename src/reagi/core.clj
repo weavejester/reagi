@@ -229,23 +229,23 @@
   [init stream]
   (reduce #(%2 %1) init stream))
 
-(comment
-
-(defn- uniq-chan [init in]
+(defn- uniq-ch [in]
   (let [out (chan)]
-    (go (loop [prev init]
-          (if-let [[msg] (<! in)]
-            (do (when (not= msg prev)
-                  (>! out [msg]))
-                (recur msg))
+    (go (loop [prev undefined]
+          (if-let [[t val] (<! in)]
+            (do (if (or (undefined? prev) (not= val prev))
+                  (>! out [t val]))
+                (recur val))
             (close! out))))
     out))
 
 (defn uniq
   "Remove any successive duplicates from the stream."
   [stream]
-  (let [init @stream]
-    (derive #(uniq-chan init %) init stream)))
+  (let [ch (sub-chan stream)]
+    (events (uniq-ch ch) true #(close! ch))))
+
+(comment
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
