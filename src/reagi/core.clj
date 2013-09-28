@@ -116,20 +116,6 @@
      (doseq [m (cons msg msgs)]
        (stream m))))
 
-(defn- map-ch [f ch]
-  (let [out (chan)]
-    (go (loop []
-          (if-let [[t val] (<! ch)]
-            (do (>! out [t (f val)])
-                (recur))
-            (close! out))))
-    out))
-
-(defn map [f stream]
-  (let [ch (chan)]
-    (sub stream ch)
-    (events (map-ch f ch) true #(close! ch))))
-
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
@@ -170,12 +156,21 @@
   (let [chs (mapv sub-chan streams)]
     (events (zip-ch chs) true #(close-all! chs))))
 
-(comment
+(defn- map-ch [f ch]
+  (let [out (chan)]
+    (go (loop []
+          (if-let [[t val] (<! ch)]
+            (do (>! out [t (f val)])
+                (recur))
+            (close! out))))
+    out))
 
 (defn map
   "Map a function over a stream."
   ([f stream]
-     (derive #(map-chan f %) (f @stream) stream))
+     (let [ch (chan)]
+       (sub stream ch)
+       (events (map-ch f ch) true #(close! ch))))
   ([f stream & streams]
      (map (partial apply f) (apply zip stream streams))))
 
@@ -183,6 +178,8 @@
   "Constantly map the same value over an event stream."
   [value stream]
   (map (core/constantly value) stream))
+
+(comment
 
 (defn- mapcat-chan [f in]
   (let [out (chan)]
