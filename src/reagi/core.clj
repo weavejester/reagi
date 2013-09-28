@@ -156,37 +156,12 @@
   (let [chs (mapv sub-chan streams)]
     (events (zip-ch chs) true #(close-all! chs))))
 
-(defn- map-ch [f ch]
+(defn- mapcat-ch [f in]
   (let [out (chan)]
     (go (loop []
-          (if-let [[t val] (<! ch)]
-            (do (>! out [t (f val)])
-                (recur))
-            (close! out))))
-    out))
-
-(defn map
-  "Map a function over a stream."
-  ([f stream]
-     (let [ch (chan)]
-       (sub stream ch)
-       (events (map-ch f ch) true #(close! ch))))
-  ([f stream & streams]
-     (map (partial apply f) (apply zip stream streams))))
-
-(defn constantly
-  "Constantly map the same value over an event stream."
-  [value stream]
-  (map (core/constantly value) stream))
-
-(comment
-
-(defn- mapcat-chan [f in]
-  (let [out (chan)]
-    (go (loop []
-          (if-let [[msg] (<! in)]
+          (if-let [[t msg] (<! in)]
             (let [xs (f msg)]
-              (doseq [x xs] (>! out [x]))
+              (doseq [x xs] (>! out [t x]))
               (recur))
             (close! out))))
     out))
@@ -194,9 +169,15 @@
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
-     (derive #(mapcat-chan f %) (last (f @stream)) stream))
+     (let [ch (sub-chan stream)]
+       (events (mapcat-ch f ch) true #(close! ch))))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
+
+(defn map
+  "Map a function over a stream."
+  [f & streams]
+  (apply mapcat (comp list f) streams))
 
 (defn filter
   "Filter a stream by a predicate."
@@ -208,6 +189,13 @@
   [pred stream]
   (filter (complement pred) stream))
 
+(defn constantly
+  "Constantly map the same value over an event stream."
+  [value stream]
+  (map (core/constantly value) stream))
+
+(comment
+ 
 (defn- reduce-chan [f init in]
   (let [out (chan)]
     (go (loop [val init]
