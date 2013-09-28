@@ -56,7 +56,7 @@
 (defn evt
   "Create an event suitable to be pushed onto a channel."
   [msg]
-  [(System/nanoTime) msg])
+  [(System/currentTimeMillis) msg])
 
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
@@ -252,17 +252,24 @@
   (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
        (map first)))
 
-(comment
+(defn- throttle-ch [timeout-ms in]
+  (let [out (chan)]
+    (go (loop [t0 0]
+          (if-let [[t1 val] (<! in)]
+            (do (if (>= (- t1 t0) timeout-ms)
+                  (>! out [t1 val]))
+                (recur t1))
+            (close! out))))
+    out))
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
   [timeout-ms stream]
-  (->> stream
-       (map (fn [x] [(System/currentTimeMillis) x]))
-       (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
-       (remove (fn [[dt _]] (>= timeout-ms dt)))
-       (map second)))
+  (let [ch (sub-chan stream)]
+    (events (throttle-ch timeout-ms ch) true #(close! ch))))
+
+(comment
 
 (defn- start-sampler
   [channel reference interval ^WeakReference stream-ref]
