@@ -62,15 +62,15 @@
   [msg]
   [(System/currentTimeMillis) msg])
 
-;; reify creates an object twice, leading to the finalize method
-;; to be prematurely triggered. For this reason, we use a type.
-
 (defn- deref-events [ob head ms timeout-val]
   (if-let [hd @head]
     (second hd)
     (if-let [val (peek!! ob ms)]
       (second val)
       timeout-val)))
+
+;; reify creates an object twice, leading to the finalize method
+;; to be prematurely triggered. For this reason, we use a type.
 
 (deftype Events [ch closed? clean-up ob head]
   clojure.lang.IPending
