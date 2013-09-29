@@ -218,7 +218,8 @@
   ([f init stream]
      (let [ch (tap stream)]
        (go (>! ch (evt init)))
-       (events (reduce-ch f ch) true #(close! ch)))))
+       (doto (events (reduce-ch f ch) true #(close! ch))
+         (deref)))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
