@@ -32,6 +32,10 @@
         (is (and (>= (- t1 t0) 100)
                  (<= (- t1 t0) 110)))))))
 
+(deftest test-events?
+  (is (r/events? (r/events)))
+  (is (not (r/events? "foo"))))
+
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
   (Thread/sleep (* 10 (count msgs))))

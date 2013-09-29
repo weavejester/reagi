@@ -118,6 +118,11 @@
        (sub ob (track head))
        (Events. ch closed? clean-up ob head deps))))
 
+(defn events?
+  "Return true if the object is a stream of events."
+  [x]
+  (instance? Events x))
+
 (defn push!
   "Push one or more messages onto the stream."
   ([stream])
