@@ -1,6 +1,6 @@
 (ns reagi.core-test
-  (:use clojure.test)
-  (:require [reagi.core :as r]))
+  (:require [clojure.test :refer :all]
+            [reagi.core :as r]))
 
 (deftest test-behavior
   (let [a (atom 1)
