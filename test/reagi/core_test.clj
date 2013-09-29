@@ -10,14 +10,27 @@
     (is (= @b 3))))
 
 (deftest test-events
-  (testing "Push"
+  (testing "push"
     (let [e (r/events)]
       (e 1)
       (Thread/sleep 20)
       (is (= 1 @e))
       (e 2)
       (Thread/sleep 20)
-      (is (= 2 @e)))))
+      (is (= 2 @e))))
+  (testing "realized?"
+    (let [e (r/events)]
+      (is (not (realized? e)))
+      (e 1)
+      (Thread/sleep 10)
+      (is (realized? e))))
+  (testing "deref"
+    (let [e  (r/events)
+          t0 (System/currentTimeMillis)]
+      (is (= (deref e 100 :missing) :missing))
+      (let [t1 (System/currentTimeMillis)]
+        (is (and (>= (- t1 t0) 100)
+                 (<= (- t1 t0) 110)))))))
 
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
