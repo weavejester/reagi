@@ -91,6 +91,22 @@
       (push!! s2 3)
       (is (= @e 5)))))
 
+(deftest test-filter
+  (let [s (r/events)
+        e (r/filter even? s)]
+    (push!! s 1)
+    (is (not (realized? e)))
+    (push!! s 2 3)
+    (is (= @e 2))))
+
+(deftest test-remove
+  (let [s (r/events)
+        e (r/remove even? s)]
+    (push!! s 0)
+    (is (not (realized? e)))
+    (push!! s 1 2)
+    (is (= @e 1))))
+
 (deftest test-uniq
   (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]
