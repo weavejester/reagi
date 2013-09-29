@@ -197,26 +197,28 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(defn- reduce-ch [f init in]
+(defn- reduce-ch [f ch]
   (let [out (chan)]
-    (go (loop [acc init]
-          (if-let [[t val] (<! in)]
-            (if (undefined? acc)
-              (recur val)
+    (go (let [[t init] (<! ch)]
+          (>! out [t init])
+          (loop [acc init]
+            (if-let [[t val] (<! ch)]
               (let [val (f acc val)]
                 (>! out [t val])
-                (recur val)))
-            (close! out))))
+                (recur val))
+              (close! out)))))
     out))
 
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
   ([f stream]
-     (reduce f undefined stream))
+     (let [ch (tap stream)]
+       (events (reduce-ch f ch) true #(close! ch))))
   ([f init stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f init ch) true #(close! ch)))))
+       (go (>! ch (evt init)))
+       (events (reduce-ch f ch) true #(close! ch)))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
