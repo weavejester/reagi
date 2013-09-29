@@ -90,13 +90,11 @@
 (deftest test-cycle
   (let [s (r/events)
         e (r/cycle [:on :off] s)]
-    (is (= :on @e))
     (push!! s 1)
     (is (= :off @e))
     (push!! s 1)
     (is (= :on @e))))
 
-(comment
 (deftest test-constantly
   (let [s (r/events)
         e (r/constantly 1 s)
@@ -167,4 +165,3 @@
       (reset! a false)
       (Thread/sleep 120)
       (is (= @a true)))))
-)
