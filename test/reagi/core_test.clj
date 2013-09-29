@@ -9,87 +9,82 @@
     (swap! a inc)
     (is (= @b 3))))
 
-(deftest test-event-stream
-  (testing "Initial value"
-    (is (= 1 @(r/event-stream 1))))
-  (testing "Push"
-    (let [e (r/event-stream 0)]
+(deftest test-events
+  (testing "push"
+    (let [e (r/events)]
       (e 1)
       (Thread/sleep 20)
       (is (= 1 @e))
       (e 2)
       (Thread/sleep 20)
-      (is (= 2 @e)))))
+      (is (= 2 @e))))
+  (testing "realized?"
+    (let [e (r/events)]
+      (is (not (realized? e)))
+      (e 1)
+      (Thread/sleep 10)
+      (is (realized? e))))
+  (testing "deref"
+    (let [e  (r/events)
+          t0 (System/currentTimeMillis)]
+      (is (= (deref e 100 :missing) :missing))
+      (let [t1 (System/currentTimeMillis)]
+        (is (and (>= (- t1 t0) 100)
+                 (<= (- t1 t0) 110)))))))
 
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
   (Thread/sleep (* 10 (count msgs))))
 
 (deftest test-push!
-  (let [e (r/event-stream 0)]
+  (let [e (r/events)]
     (push!! e 1)
     (is (= 1 @e))
     (push!! e 2 3 4)
     (is (= 4 @e))))
 
-(deftest test-initial
-  (let [e1 (r/event-stream :foo)
-        e2 (r/initial :bar e1)]
-    (is (= @e1 :foo))
-    (is (= @e2 :bar))
-    (push!! e1 :baz)
-    (is (= @e1 :baz))
-    (is (= @e2 :baz))))
-
 (deftest test-zip
-  (let [e1 (r/event-stream 0)
-        e2 (r/event-stream 0)
+  (let [e1 (r/events)
+        e2 (r/events)
         z  (r/zip e1 e2)]
-    (is (= @z [0 0]))
     (push!! e1 1)
-    (is (= @z [1 0]))
     (push!! e2 2)
     (is (= @z [1 2]))
     (push!! e1 3)
+    (is (= @z [3 2]))
     (push!! e2 4)
     (is (= @z [3 4]))))
 
 (deftest test-map
   (testing "Basic operation"
-    (let [s (r/event-stream 0)
+    (let [s (r/events)
           e (r/map inc s)]
-      (is (= 1 @e))
       (push!! s 1)
       (is (= 2 @e))))
   (testing "Multiple streams"
-    (let [s1 (r/event-stream 0)
-          s2 (r/event-stream 0)
+    (let [s1 (r/events)
+          s2 (r/events)
           e  (r/map + s1 s2)]
-      (is (= @e 0))
       (push!! s1 4)
-      (is (= @e 4))
       (push!! s2 6)
       (is (= @e 10)))))
 
 (deftest test-mapcat
   (testing "Basic operation"
-    (let [s (r/event-stream 0)
+    (let [s (r/events)
           e (r/mapcat (comp list inc) s)]
-      (is (= 1 @e))
       (push!! s 1)
       (is (= 2 @e))))
   (testing "Multiple streams"
-    (let [s1 (r/event-stream 0)
-          s2 (r/event-stream 0)
+    (let [s1 (r/events)
+          s2 (r/events)
           e  (r/mapcat (comp list +) s1 s2)]
-      (is (= @e 0))
       (push!! s1 2)
-      (is (= @e 2))
       (push!! s2 3)
       (is (= @e 5)))))
 
 (deftest test-uniq
-  (let [s (r/event-stream nil)
+  (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]
     (push!! s 1 1)
     (is (= 1 @e))
@@ -97,7 +92,7 @@
     (is (= 3 @e))))
 
 (deftest test-count
-  (let [e (r/event-stream nil)
+  (let [e (r/events)
         c (r/count e)]
     (is (= @c 0))
     (push!! e 1)
@@ -106,25 +101,23 @@
     (is (= @c 3))))
 
 (deftest test-cycle
-  (let [s (r/event-stream nil)
+  (let [s (r/events)
         e (r/cycle [:on :off] s)]
+    (push!! s 1)
     (is (= :on @e))
     (push!! s 1)
-    (is (= :off @e))
-    (push!! s 1)
-    (is (= :on @e))))
+    (is (= :off @e))))
 
 (deftest test-constantly
-  (let [s (r/event-stream nil)
+  (let [s (r/events)
         e (r/constantly 1 s)
         a (r/reduce + 0 e)]
-    (is (= @e 1))
     (push!! s 2 4 5)
     (is (= @e 1))
     (is (= @a 3))))
 
 (deftest test-throttle
-  (let [s (r/event-stream nil)
+  (let [s (r/events)
         e (r/throttle 100 s)]
     (r/push! s 1 2)
     (Thread/sleep 20)
@@ -137,26 +130,26 @@
 
 (deftest test-gc
   (testing "Derived maps"
-    (let [s (r/event-stream 0)
+    (let [s (r/events)
           e (r/map inc (r/map inc s))]
       (System/gc)
       (push!! s 1)
       (is (= @e 3))))
   (testing "Merge"
-    (let [s (r/event-stream 0)
+    (let [s (r/events)
           e (r/merge (r/map inc s))]
       (System/gc)
       (push!! s 1)
       (is (= @e 2))))
   (testing "Zip"
-    (let [s (r/event-stream 0)
+    (let [s (r/events)
           e (r/zip (r/map inc s) (r/map dec s))]
       (System/gc)
       (push!! s 1)
       (is (= @e [2 0]))))
   (testing "GC unreferenced streams"
     (let [a (atom nil)
-          s (r/event-stream nil)]
+          s (r/events)]
       (r/map #(reset! a %) s)
       (System/gc)
       (push!! s 1)

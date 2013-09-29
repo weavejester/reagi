@@ -1,7 +1,7 @@
 (ns reagi.core
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :refer (alts! chan close! go timeout <! >! <!! >!!)])
+            [clojure.core.async :refer (alts! alts!! chan close! go timeout <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count delay]))
 
@@ -19,66 +19,104 @@
   [& form]
   `(behavior-call (fn [] ~@form)))
 
-(defprotocol ^:no-doc Observable
-  (subscribe [stream channel]
-    "Assign a core.async channel to receive messages from a source of events."))
+(defn- track [head]
+  (let [ch (chan)]
+    (go (loop []
+          (when-let [m (<! ch)]
+            (reset! head m)
+            (recur))))
+    ch))
 
-(defn- distribute [input outputs]
-  (go (loop []
-        (when-let [[msg] (<! input)]
-          (doseq [out @outputs]
-            (>! out [msg]))
-          (recur)))))
+(defprotocol ^:no-doc Observable
+  (sub [observable channel])
+  (unsub [observable channel]))
 
 (defn- observable [channel]
   (let [observers (atom #{})]
-    (distribute channel observers)
+    (go (loop []
+          (when-let [m (<! channel)]
+            (doseq [o @observers]
+              (>! o m))
+            (recur))))
     (reify
       Observable
-      (subscribe [_ ch]
-        (swap! observers conj ch)))))
+      (sub [_ ch]   (swap! observers conj ch))
+      (unsub [_ ch] (swap! observers disj ch)))))
 
-(defn- map-chan [f in]
-  (let [out (chan)]
-    (go (loop []
-          (if-let [[msg] (<! in)]
-            (do (>! out [(f msg)])
-                (recur))
-            (close! out))))
-    out))
+(defn tap [ob]
+  (let [ch (chan)]
+    (sub ob ch)
+    ch))
 
-(defn- track-head [head channel]
-  (map-chan (fn [msg] (reset! head msg) msg)
-            channel))
+(defn- peek!! [ob time-ms]
+  (let [ch (tap ob)]
+    (try
+      (if time-ms
+        (first (alts!! [ch (timeout time-ms)]))
+        (<!! ch))
+      (finally
+        (unsub ob ch)))))
+
+(defprotocol ^:no-doc Dependencies
+  (deps* [x]))
+
+(defn evt
+  "Create an event suitable to be pushed onto a channel."
+  [msg]
+  [(System/currentTimeMillis) msg])
+
+(defn- deref-events [ob head ms timeout-val]
+  (if-let [hd @head]
+    (second hd)
+    (if-let [val (peek!! ob ms)]
+      (second val)
+      timeout-val)))
 
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype EventStream [head channel stream]
+(deftype Events [ch closed? clean-up ob head deps]
+  clojure.lang.IPending
+  (isRealized [_] (not (nil? @head)))
   clojure.lang.IDeref
-  (deref [_] @head)
+  (deref [self]
+    (deref-events ob head nil nil))
+  clojure.lang.IBlockingDeref
+  (deref [_ ms timeout-val]
+    (deref-events ob head ms timeout-val))
   clojure.lang.IFn
-  (invoke [_ msg]
-    (>!! channel [msg])
-    msg)
+  (invoke [stream msg]
+    (if closed?
+      (throw (UnsupportedOperationException. "Cannot push to closed event stream"))
+      (do (>!! ch (evt msg))
+          stream)))
   Observable
-  (subscribe [_ ch]
-    (subscribe stream ch))
+  (sub [_ c] (sub ob c))
+  (unsub [_ c] (unsub ob c))
+  Dependencies
+  (deps* [_] deps)
   Object
-  (finalize [_]
-    (close! channel)))
+  (finalize [_] (clean-up)))
 
-(alter-meta! #'->EventStream assoc :no-doc true)
+(alter-meta! #'->Events assoc :no-doc true)
 
-(defn event-stream
-  "Create a new event stream with an initial value. Calling deref on an event
-  stream will return the last value pushed into the event stream, or the initial
-  value if no values have been pushed."
-  [init]
-  (let [channel (chan)
-        head    (atom init)
-        stream  (observable (track-head head channel))]
-    (EventStream. head channel stream)))
+(defn- no-op [])
+
+(defn events
+  "Create an referential stream of events."
+  ([]
+     (events (chan)))
+  ([ch]
+     (events ch false))
+  ([ch closed?]
+     (events ch closed? no-op))
+  ([ch closed? clean-up]
+     (events ch closed? clean-up nil))
+  ([ch closed? clean-up deps]
+     (let [ob   (observable ch)
+           head (atom nil)]
+       (sub ob (track head))
+       (Events. ch closed? clean-up ob head deps))))
 
 (defn push!
   "Push one or more messages onto the stream."
@@ -89,92 +127,51 @@
      (doseq [m (cons msg msgs)]
        (stream m))))
 
-(deftype DerivedEventStream [head stream channels]
-  clojure.lang.IDeref
-  (deref [_] @head)
-  Observable
-  (subscribe [_ ch]
-    (subscribe stream ch))
-  Object
-  (finalize [_]
-    (doseq [c channels]
-      (close! c))))
-
-(alter-meta! #'->DerivedEventStream assoc :no-doc true)
-
-(defn derive
-  "Derive a new event stream from a handler function, an initial value, and one
-  or more parent streams. The handler should expect to receive an input channel
-  for each stream as its argument, and should return an output channel."
-  [handler init & parents]
-  (let [inputs   (into {} (for [p parents] [p (chan)]))
-        output   (apply handler (vals inputs))
-        head     (atom init)
-        stream   (observable (track-head head output))
-        channels (cons output (vals inputs))]
-    (doseq [[p i] inputs]
-      (subscribe p i))
-    (DerivedEventStream. head stream channels)))
-
-(defn initial
-  "Give the event stream a new initial value."
-  [init stream]
-  (derive #(map-chan identity %) init stream))
-
-(defn- merge-chan [& ins]
-  (let [out (chan)]
-    (go (loop []
-          (let [[msg _] (alts! ins)]
-            (if msg
-              (do (>! out msg)
-                  (recur))
-              (close! out)))))
-    out))
-
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
   [& streams]
-  (apply derive merge-chan nil streams))
+  (let [ch (chan)]
+    (doseq [s streams]
+      (sub s ch))
+    (events ch true #(close! ch) streams)))
 
-(defn- zip-chan [init & ins]
+(def ^:private undefined (Object.))
+
+(defn- undefined? [x]
+  (identical? x undefined))
+
+(defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
         out   (chan)]
-    (go (loop [value init]
+    (go (loop [value (mapv (core/constantly undefined) ins)]
           (let [[data in] (alts! ins)]
-            (if-let [[msg] data]
-              (let [value (assoc value (index in) msg)]
-                (do (>! out [value])
+            (if-let [[t v] data]
+              (let [value (assoc value (index in) v)]
+                (do (if-not (some undefined? value)
+                      (>! out [t value]))
                     (recur value)))
               (close! out)))))
     out))
+
+(defn- close-all! [chs]
+  (doseq [ch chs]
+    (close! ch)))
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a
   vector will be pushed to the returned stream containing the latest events
   of all input streams."
   [& streams]
-  (let [init (mapv deref streams)]
-    (apply derive #(apply zip-chan init %&) init streams)))
+  (let [chs (mapv tap streams)]
+    (events (zip-ch chs) true #(close-all! chs) streams)))
 
-(defn map
-  "Map a function over a stream."
-  ([f stream]
-     (derive #(map-chan f %) (f @stream) stream))
-  ([f stream & streams]
-     (map (partial apply f) (apply zip stream streams))))
-
-(defn constantly
-  "Constantly map the same value over an event stream."
-  [value stream]
-  (map (core/constantly value) stream))
-
-(defn- mapcat-chan [f in]
+(defn- mapcat-ch [f in]
   (let [out (chan)]
     (go (loop []
-          (if-let [[msg] (<! in)]
+          (if-let [[t msg] (<! in)]
             (let [xs (f msg)]
-              (doseq [x xs] (>! out [x]))
+              (doseq [x xs] (>! out [t x]))
               (recur))
             (close! out))))
     out))
@@ -182,9 +179,15 @@
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
-     (derive #(mapcat-chan f %) (last (f @stream)) stream))
+     (let [ch (tap stream)]
+       (events (mapcat-ch f ch) true #(close! ch) stream)))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
+
+(defn map
+  "Map a function over a stream."
+  [f & streams]
+  (apply mapcat (comp list f) streams))
 
 (defn filter
   "Filter a stream by a predicate."
@@ -196,23 +199,34 @@
   [pred stream]
   (filter (complement pred) stream))
 
-(defn- reduce-chan [f init in]
+(defn constantly
+  "Constantly map the same value over an event stream."
+  [value stream]
+  (map (core/constantly value) stream))
+
+(defn- reduce-ch [f ch]
   (let [out (chan)]
-    (go (loop [val init]
-          (if-let [[msg] (<! in)]
-            (let [val (f val msg)]
-              (>! out [val])
-              (recur val))
-            (close! out))))
+    (go (let [[t init] (<! ch)]
+          (>! out [t init])
+          (loop [acc init]
+            (if-let [[t val] (<! ch)]
+              (let [val (f acc val)]
+                (>! out [t val])
+                (recur val))
+              (close! out)))))
     out))
 
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
   ([f stream]
-     (reduce f @stream stream))
+     (let [ch (tap stream)]
+       (events (reduce-ch f ch) true #(close! ch) stream)))
   ([f init stream]
-     (derive #(reduce-chan f init %) init stream)))
+     (let [ch (tap stream)]
+       (go (>! ch (evt init)))
+       (doto (events (reduce-ch f ch) true #(close! ch) stream)
+         (deref)))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
@@ -224,64 +238,69 @@
   [init stream]
   (reduce #(%2 %1) init stream))
 
-(defn- uniq-chan [init in]
+(defn- uniq-ch [in]
   (let [out (chan)]
-    (go (loop [prev init]
-          (if-let [[msg] (<! in)]
-            (do (when (not= msg prev)
-                  (>! out [msg]))
-                (recur msg))
+    (go (loop [prev undefined]
+          (if-let [[t val] (<! in)]
+            (do (if (or (undefined? prev) (not= val prev))
+                  (>! out [t val]))
+                (recur val))
             (close! out))))
     out))
 
 (defn uniq
   "Remove any successive duplicates from the stream."
   [stream]
-  (let [init @stream]
-    (derive #(uniq-chan init %) init stream)))
+  (let [ch (tap stream)]
+    (events (uniq-ch ch) true #(close! ch) stream)))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
-  (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
-       (map first)))
+  (let [cycled (cons nil (core/cycle values))]
+    (map first (reduce (fn [xs _] (next xs)) cycled stream))))
+
+(defn- throttle-ch [timeout-ms in]
+  (let [out (chan)]
+    (go (loop [t0 0]
+          (if-let [[t1 val] (<! in)]
+            (do (if (>= (- t1 t0) timeout-ms)
+                  (>! out [t1 val]))
+                (recur t1))
+            (close! out))))
+    out))
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
   [timeout-ms stream]
-  (->> stream
-       (map (fn [x] [(System/currentTimeMillis) x]))
-       (reduce (fn [[t0 _] [t1 x]] [(- t1 t0) x]) [0 nil])
-       (remove (fn [[dt _]] (>= timeout-ms dt)))
-       (map second)))
+  (let [ch (tap stream)]
+    (events (throttle-ch timeout-ms ch) true #(close! ch) stream)))
 
-(defn- start-sampler
-  [channel reference interval ^WeakReference stream-ref]
+(defn- run-sampler
+  [ch ref interval stop?]
   (go (loop []
         (<! (timeout interval))
-        (when (.get stream-ref)
-          (>! channel [@reference])
+        (when-not @stop?
+          (>! ch (evt @ref))
           (recur)))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
   The interval time is specified in milliseconds."
   [interval-ms reference]
-  (let [head     (atom @reference)
-        channel  (chan)
-        observed (observable (track-head head channel))
-        stream   (DerivedEventStream. head observed nil)]
-    (start-sampler channel reference interval-ms (WeakReference. stream))
-    stream))
+  (let [ch    (chan)
+        stop? (atom false)]
+    (run-sampler ch reference interval-ms stop?)
+    (events ch true #(reset! stop? true))))
 
-(defn- delay-chan [delay-ms in]
+(defn- delay-ch [delay-ms ch]
   (let [out (chan)]
     (go (loop []
-          (if-let [msg (<! in)]
+          (if-let [val (<! ch)]
             (do (<! (timeout delay-ms))
-                (>! out msg)
+                (>! out val)
                 (recur))
             (close! out))))
     out))
@@ -289,4 +308,5 @@
 (defn delay
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
-  (derive #(delay-chan delay-ms %) @stream stream))
+  (let [ch (tap stream)]
+    (events (delay-ch delay-ms ch) true #(close! ch) stream)))
