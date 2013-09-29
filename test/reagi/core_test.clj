@@ -107,6 +107,28 @@
     (push!! s 1 2)
     (is (= @e 1))))
 
+(deftest test-reduce
+  (testing "no initial value"
+    (let [s (r/events)
+          e (r/reduce + s)]
+      (is (not (realized? e)))
+      (push!! s 1)
+      (is (realized? e))
+      (is (= @e 1))
+      (push!! s 2)
+      (is (= @e 3))
+      (push!! s 3 4)
+      (is (= @e 10))))
+  (testing "initial value"
+    (let [s (r/events)
+          e (r/reduce + 0 s)]
+      (is (realized? e))
+      (is (= @e 0))
+      (push!! s 1)
+      (is (= @e 1))
+      (push!! s 2 3)
+      (is (= @e 6)))))
+
 (deftest test-uniq
   (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]
