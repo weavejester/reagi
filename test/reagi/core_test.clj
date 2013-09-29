@@ -197,6 +197,7 @@
     (let [a (atom nil)
           s (r/events)]
       (r/map #(reset! a %) s)
+      (Thread/sleep 100)
       (System/gc)
       (push!! s 1)
       (is (nil? @a)))))
