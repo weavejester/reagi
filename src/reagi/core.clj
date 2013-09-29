@@ -57,6 +57,9 @@
       (finally
         (unsub ob ch)))))
 
+(defprotocol ^:no-doc Dependencies
+  (deps* [x]))
+
 (defn evt
   "Create an event suitable to be pushed onto a channel."
   [msg]
@@ -72,7 +75,7 @@
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype Events [ch closed? clean-up ob head]
+(deftype Events [ch closed? clean-up ob head deps]
   clojure.lang.IPending
   (isRealized [_] (not (nil? @head)))
   clojure.lang.IDeref
@@ -90,6 +93,8 @@
   Observable
   (sub [_ c] (sub ob c))
   (unsub [_ c] (unsub ob c))
+  Dependencies
+  (deps* [_] deps)
   Object
   (finalize [_] (clean-up)))
 
@@ -106,10 +111,12 @@
   ([ch closed?]
      (events ch closed? no-op))
   ([ch closed? clean-up]
+     (events ch closed? clean-up nil))
+  ([ch closed? clean-up deps]
      (let [ob   (observable ch)
            head (atom nil)]
        (sub ob (track head))
-       (Events. ch closed? clean-up ob head))))
+       (Events. ch closed? clean-up ob head deps))))
 
 (defn push!
   "Push one or more messages onto the stream."
@@ -127,7 +134,7 @@
   (let [ch (chan)]
     (doseq [s streams]
       (sub s ch))
-    (events ch true #(close! ch))))
+    (events ch true #(close! ch) streams)))
 
 (def ^:private undefined (Object.))
 
@@ -157,7 +164,7 @@
   of all input streams."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (zip-ch chs) true #(close-all! chs))))
+    (events (zip-ch chs) true #(close-all! chs) streams)))
 
 (defn- mapcat-ch [f in]
   (let [out (chan)]
@@ -173,7 +180,7 @@
   "Mapcat a function over a stream."
   ([f stream]
      (let [ch (tap stream)]
-       (events (mapcat-ch f ch) true #(close! ch))))
+       (events (mapcat-ch f ch) true #(close! ch) stream)))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -214,11 +221,11 @@
   the current value of the source stream."
   ([f stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f ch) true #(close! ch))))
+       (events (reduce-ch f ch) true #(close! ch) stream)))
   ([f init stream]
      (let [ch (tap stream)]
        (go (>! ch (evt init)))
-       (doto (events (reduce-ch f ch) true #(close! ch))
+       (doto (events (reduce-ch f ch) true #(close! ch) stream)
          (deref)))))
 
 (defn count
@@ -245,7 +252,7 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (let [ch (tap stream)]
-    (events (uniq-ch ch) true #(close! ch))))
+    (events (uniq-ch ch) true #(close! ch) stream)))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -269,7 +276,7 @@
   The timeout is specified in milliseconds."
   [timeout-ms stream]
   (let [ch (tap stream)]
-    (events (throttle-ch timeout-ms ch) true #(close! ch))))
+    (events (throttle-ch timeout-ms ch) true #(close! ch) stream)))
 
 (defn- run-sampler
   [ch ref interval stop?]
@@ -302,4 +309,4 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (let [ch (tap stream)]
-    (events (delay-ch delay-ms ch) true #(close! ch))))
+    (events (delay-ch delay-ms ch) true #(close! ch) stream)))
