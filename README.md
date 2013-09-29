@@ -44,7 +44,7 @@ returns the last value pushed onto the stream.
 ```clojure
 user=> (def e (r/events))
 #'user/e
-user=> (r/push e 1)
+user=> (r/push! e 1)
 #<Events@66d278af: 1>
 user=> @e
 1
