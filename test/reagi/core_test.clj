@@ -91,9 +91,9 @@
   (let [s (r/events)
         e (r/cycle [:on :off] s)]
     (push!! s 1)
-    (is (= :off @e))
+    (is (= :on @e))
     (push!! s 1)
-    (is (= :on @e))))
+    (is (= :off @e))))
 
 (deftest test-constantly
   (let [s (r/events)

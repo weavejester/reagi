@@ -258,8 +258,8 @@
   "Incoming events cycle a sequence of values. Useful for switching between
   states."
   [values stream]
-  (->> (reduce (fn [vs _] (next vs)) (core/cycle values) stream)
-       (map first)))
+  (let [cycled (cons nil (core/cycle values))]
+    (map first (reduce (fn [xs _] (next xs)) cycled stream))))
 
 (defn- throttle-ch [timeout-ms in]
   (let [out (chan)]
