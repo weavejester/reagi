@@ -5,19 +5,28 @@
   (:refer-clojure :exclude [constantly derive mapcat map filter remove
                             merge reduce cycle count delay]))
 
+(deftype Behavior [func]
+  clojure.lang.IDeref
+  (deref [behavior] (func)))
+
+(ns-unmap *ns* '->Behavior)
+
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
   [func]
-  (reify
-    clojure.lang.IDeref
-    (deref [behavior] (func))))
+  (Behavior. func))
 
 (defmacro behavior
   "Takes a body of expressions and yields a behavior object that will evaluate
   the body each time it is dereferenced."
   [& form]
   `(behavior-call (fn [] ~@form)))
+
+(defn behavior?
+  "Return true if the object is a behavior."
+  [x]
+  (instance? Behavior x))
 
 (defn- track [head]
   (let [ch (chan)]
@@ -98,7 +107,7 @@
   Object
   (finalize [_] (clean-up)))
 
-(alter-meta! #'->Events assoc :no-doc true)
+(ns-unmap *ns* '->Events)
 
 (defn- no-op [])
 

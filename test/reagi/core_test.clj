@@ -9,6 +9,10 @@
     (swap! a inc)
     (is (= @b 3))))
 
+(deftest test-behavior
+  (is (r/behavior? (r/behavior "foo")))
+  (is (not (r/behavior? "foo"))))
+
 (deftest test-events
   (testing "push"
     (let [e (r/events)]
