@@ -15,61 +15,70 @@ Add the following dependency to your `project.clj` file:
 
     [reagi "0.6.0-SNAPSHOT"]
 
-## Documentation
+## Overview
 
-* [API Docs](http://weavejester.github.io/reagi/reagi.core.html)
-
-## Usage
-
-Reagi introduces two new reference types: behaviors and event-streams.
-
-A behavior is evaluated each time you deref it. You can think of it as
-being similar to an equation cell on a spreadsheet.
+Reagi introduces two new reference types: behaviors and event streams.
 
 ```clojure
 user=> (require '[reagi.core :as r])
 nil
-user=> (def a (atom 1))
-#'user/a
-user=> (def b (r/behavior (+ @a 1)))
-#'user/b
-user=> @b
-2
-user=> (reset! a 5)
-5
-user=> @b
-6
 ```
 
-An event stream is a discrete stream of events. Calling deref on an
-event stream will return the latest event pushed to the stream.
+A behavior models continuous change, and is evaluated each time you
+dereference it.
+
 
 ```clojure
-user=> (def e (r/event-stream 0))
+user=> (def t (r/behavior (System/currentTimeMillis)))
+#'user/t
+user=> @t
+1380475144266
+user=> @t
+1380475175587
+```
+
+An event stream models a series of discrete changes. Events must be
+expicitly pushed onto the stream. Dereferencing the event stream
+returns the last value pushed onto the stream.
+
+```clojure
+user=> (def e (r/events))
 #'user/e
-user=> @e
-0
-user=> (r/push! e 1)
-nil
+user=> (r/push e 1)
+#<Events@66d278af: 1>
 user=> @e
 1
-user=> (r/push! e 2)
-nil
-user=> @e
-2
 ```
 
-Perhaps more usefully, you can create new event streams using special
-versions of the standard seq functions, like map, filter and reduce:
+If the event stream is empty, dereferencing it will block the running
+thread, much like a promise.
+
+Reagi provides a number of functions for transforming event streams,
+which mimic many of the standard Clojure functions for dealing with
+seqs:
 
 ```clojure
-user=> (def plus-1 (r/map inc e))
-#'user/plus-1
-user=> (r/push! e 3)
-nil
-user=> @plus-1
-4
+user=> (def incremented (r/map inc e))
+#'user/m
+user=> (r/push! e 2)
+#<Events@66d278af: 2>
+user=> @incremented
+3
 ```
+
+Finally, behaviors can be converted to event streams by sampling them
+at a specified interval:
+
+```clojure
+user=> (def et (r/sample 1000 t))
+#'user/et
+user=> @et
+1380475969885
+```
+
+## Documentation
+
+* [API Docs](http://weavejester.github.io/reagi/reagi.core.html)
 
 ## License
 
