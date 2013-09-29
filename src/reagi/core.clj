@@ -37,8 +37,10 @@
     ch))
 
 (defprotocol ^:no-doc Observable
-  (sub [observable channel])
-  (unsub [observable channel]))
+  (sub [stream channel]
+    "Tell the stream to send events to an existing core.async channel.")
+  (unsub [stream channel]
+    "Tell the stream to stop sending events the the supplied channel."))
 
 (defn- observable [channel]
   (let [observers (atom #{})]
@@ -52,9 +54,12 @@
       (sub [_ ch]   (swap! observers conj ch))
       (unsub [_ ch] (swap! observers disj ch)))))
 
-(defn tap [ob]
+(defn tap
+  "Create a core.async channel that receives events from the supplied event
+  stream."
+  [stream]
   (let [ch (chan)]
-    (sub ob ch)
+    (sub stream ch)
     ch))
 
 (defn- peek!! [ob time-ms]
