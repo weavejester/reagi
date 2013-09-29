@@ -72,7 +72,7 @@
         (unsub ob ch)))))
 
 (defprotocol ^:no-doc Dependencies
-  (deps* [x]))
+  (^:no-doc deps* [x]))
 
 (defn evt
   "Create an event suitable to be pushed onto a channel."
