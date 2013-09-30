@@ -105,7 +105,10 @@
       (do (>!! ch (evt msg))
           stream)))
   Observable
-  (sub [_ c] (sub ob c))
+  (sub [_ c]
+    (if-let [hd @head]
+      (go (>! c hd)))    
+    (sub ob c))
   (unsub [_ c] (unsub ob c))
   Dependencies
   (deps* [_] deps)
