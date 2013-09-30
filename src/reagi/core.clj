@@ -174,7 +174,7 @@
   (doto stream deref))
 
 (defn cons
-  "Return a new string with an additional value added to the beginning."
+  "Return a new event stream with an additional value added to the beginning."
   [value stream]
   (let [ch (tap stream)]
     (go (>! ch (evt value)))
