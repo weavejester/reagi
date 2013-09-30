@@ -3,7 +3,7 @@
 </pre></div><div class="public" id="var-behavior"><h3>behavior</h3><h4 class="macro">macro</h4><div class="usage"><code>(behavior &amp; form)</code></div><pre class="doc">Takes a body of expressions and yields a behavior object that will evaluate
 the body each time it is dereferenced.</pre></div><div class="public" id="var-behavior-call"><h3>behavior-call</h3><div class="usage"><code>(behavior-call func)</code></div><pre class="doc">Takes a zero-argument function and yields a Behavior object that will
 evaluate the function each time it is dereferenced. See: behavior.</pre></div><div class="public" id="var-behavior%3F"><h3>behavior?</h3><div class="usage"><code>(behavior? x)</code></div><pre class="doc">Return true if the object is a behavior.
-</pre></div><div class="public" id="var-cons"><h3>cons</h3><div class="usage"><code>(cons value stream)</code></div><pre class="doc">Return a new string with an additional value added to the beginning.
+</pre></div><div class="public" id="var-cons"><h3>cons</h3><div class="usage"><code>(cons value stream)</code></div><pre class="doc">Return a new event stream with an additional value added to the beginning.
 </pre></div><div class="public" id="var-constantly"><h3>constantly</h3><div class="usage"><code>(constantly value stream)</code></div><pre class="doc">Constantly map the same value over an event stream.
 </pre></div><div class="public" id="var-count"><h3>count</h3><div class="usage"><code>(count stream)</code></div><pre class="doc">Return an accumulating count of the items in a stream.
 </pre></div><div class="public" id="var-cycle"><h3>cycle</h3><div class="usage"><code>(cycle values stream)</code></div><pre class="doc">Incoming events cycle a sequence of values. Useful for switching between
