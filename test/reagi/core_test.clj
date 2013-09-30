@@ -127,7 +127,11 @@
       (push!! s 1)
       (is (= @e 1))
       (push!! s 2 3)
-      (is (= @e 6)))))
+      (is (= @e 6))))
+  (testing "initial value persists"
+    (let [s (r/events)
+          e (r/map inc (r/reduce + 0 s))]
+      (is (= (deref e 1000 :error) 1)))))
 
 (deftest test-uniq
   (let [s (r/events)
@@ -149,10 +153,11 @@
 (deftest test-cycle
   (let [s (r/events)
         e (r/cycle [:on :off] s)]
+    (is (= :on (deref e 1000 :error)))
     (push!! s 1)
-    (is (= :on @e))
+    (is (= :off @e))
     (push!! s 1)
-    (is (= :off @e))))
+    (is (= :on @e))))
 
 (deftest test-constantly
   (let [s (r/events)
