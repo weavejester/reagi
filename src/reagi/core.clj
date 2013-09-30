@@ -28,13 +28,14 @@
   [x]
   (instance? Behavior x))
 
-(defn- track [head]
-  (let [ch (chan)]
+(defn- track [head ch]
+  (let [out (chan)]
     (go (loop []
           (when-let [m (<! ch)]
             (reset! head m)
+            (>! out m)
             (recur))))
-    ch))
+    out))
 
 (defprotocol ^:no-doc Observable
   (sub [stream channel]
@@ -139,9 +140,8 @@
   ([ch closed? clean-up]
      (events ch closed? clean-up nil))
   ([ch closed? clean-up deps]
-     (let [ob   (observable ch)
-           head (atom nil)]
-       (sub ob (track head))
+     (let [head (atom nil)
+           ob   (observable (track head ch))]
        (Events. ch closed? clean-up ob head deps))))
 
 (defn events?
