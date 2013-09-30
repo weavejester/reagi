@@ -51,6 +51,14 @@
     (push!! e 2 3 4)
     (is (= 4 @e))))
 
+(deftest test-cons
+  (let [e (r/events)
+        c (r/cons 5 e)]
+    (is (realized? c))
+    (is (= @c 5))
+    (push!! e 10)
+    (is (= @c 10))))
+
 (deftest test-zip
   (let [e1 (r/events)
         e2 (r/events)

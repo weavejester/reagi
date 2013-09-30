@@ -2,8 +2,8 @@
   (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
             [clojure.core.async :refer (alts! alts!! chan close! go timeout <! >! <!! >!!)])
-  (:refer-clojure :exclude [constantly derive mapcat map filter remove
-                            merge reduce cycle count delay]))
+  (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
+                            merge reduce cycle count delay cons]))
 
 (deftype Behavior [func]
   clojure.lang.IDeref
@@ -155,7 +155,7 @@
   ([stream msg]
      (stream msg))
   ([stream msg & msgs]
-     (doseq [m (cons msg msgs)]
+     (doseq [m (core/cons msg msgs)]
        (stream m))))
 
 (defn merge
@@ -166,6 +166,19 @@
     (doseq [s streams]
       (sub s ch))
     (events ch true #(close! ch) streams)))
+
+(defn ensure
+  "Block until the first value of the stream becomes available, then return the
+  stream."
+  [stream]
+  (doto stream deref))
+
+(defn cons
+  "Return a new string with an additional value added to the beginning."
+  [value stream]
+  (let [ch (tap stream)]
+    (go (>! ch (evt value)))
+    (ensure (events ch true #(close! ch) stream))))
 
 (def ^:private undefined (Object.))
 
@@ -256,8 +269,7 @@
   ([f init stream]
      (let [ch (tap stream)]
        (go (>! ch (evt init)))
-       (doto (events (reduce-ch f ch) true #(close! ch) stream)
-         (deref)))))
+       (ensure (events (reduce-ch f ch) true #(close! ch) stream)))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
