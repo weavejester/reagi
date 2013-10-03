@@ -3,7 +3,7 @@
   (:require [clojure.core :as core]
             [clojure.core.async :refer (alts! alts!! chan close! go timeout <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
-                            merge reduce cycle count delay cons]))
+                            merge reduce cycle count delay cons time]))
 
 (deftype Behavior [func]
   clojure.lang.IDeref
@@ -27,6 +27,10 @@
   "Return true if the object is a behavior."
   [x]
   (instance? Behavior x))
+
+(def time
+  "A behavior that tracks the current time in seconds."
+  (behavior (/ (System/nanoTime) 1000000000.0)))
 
 (defn- track [head ch]
   (let [out (chan)]
