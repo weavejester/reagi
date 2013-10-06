@@ -13,6 +13,12 @@
   (is (r/behavior? (r/behavior "foo")))
   (is (not (r/behavior? "foo"))))
 
+(deftest test-delta
+  (let [d (r/delta)]
+    (Thread/sleep 110)
+    (is (> @d 0.1))
+    (is (< @d 0.2))))
+
 (deftest test-events
   (testing "push"
     (let [e (r/events)]

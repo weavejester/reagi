@@ -32,6 +32,12 @@
   "A behavior that tracks the current time in seconds."
   (behavior (/ (System/nanoTime) 1000000000.0)))
 
+(defn delta
+  "Return a behavior that tracks the time in seconds from when it was created."
+  []
+  (let [t @time]
+    (behavior (- @time t))))
+
 (defn- track [head ch]
   (let [out (chan)]
     (go (loop []
