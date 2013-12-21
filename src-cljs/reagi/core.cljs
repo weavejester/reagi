@@ -15,3 +15,13 @@
   "Return true if the object is a behavior."
   [x]
   (instance? Behavior x))
+
+(def time
+  "A behavior that tracks the current time in seconds."
+  (behavior (/ (.getTime (js/Date.)) 1000.0)))
+
+(defn delta
+  "Return a behavior that tracks the time in seconds from when it was created."
+  []
+  (let [t @time]
+    (behavior (- @time t))))
