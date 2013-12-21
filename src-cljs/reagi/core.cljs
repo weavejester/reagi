@@ -1,4 +1,5 @@
-(ns reagi.core)
+(ns reagi.core
+  (:require-macros [reagi.core :refer (behavior)]))
 
 (deftype Behavior [func]
   IDeref

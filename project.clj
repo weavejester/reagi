@@ -11,7 +11,7 @@
             [lein-cljsbuild "1.0.0"]]
   :source-paths ["src" "src-cljs"]
   :cljsbuild
-  {:builds [{:source-paths ["src-cljs"]
+  {:builds [{:source-paths ["src" "src-cljs"]
              :compiler {:output-to "target/main.js"}}]}
   :profiles
   {:dev {:dependencies [[criterium "0.4.2"]]}})
