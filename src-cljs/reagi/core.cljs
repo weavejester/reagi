@@ -1,7 +1,9 @@
 (ns reagi.core
   (:require-macros [reagi.core :refer (behavior)]
                    [cljs.core.async.macros :refer (go go-loop)])
-  (:require [cljs.core.async :refer (alts! chan close! timeout <! >!)]))
+  (:require [cljs.core :as core]
+            [cljs.core.async :refer (alts! chan close! timeout <! >!)])
+  (:refer-clojure :exclude [merge]))
 
 (deftype Behavior [func]
   IDeref
@@ -129,3 +131,21 @@
   "Return true if the object is a stream of events."
   [x]
   (instance? Events x))
+
+(defn push!
+  "Push one or more messages onto the stream."
+  ([stream])
+  ([stream msg]
+     (stream msg))
+  ([stream msg & msgs]
+     (doseq [m (core/cons msg msgs)]
+       (stream m))))
+
+(defn merge
+  "Combine multiple streams into one. All events from the input streams are
+  pushed to the returned stream."
+  [& streams]
+  (let [ch (chan)]
+    (doseq [s streams]
+      (sub s ch))
+    (events ch true #(close! ch) streams)))
