@@ -3,7 +3,7 @@
                    [cljs.core.async.macros :refer (go go-loop)])
   (:require [cljs.core :as core]
             [cljs.core.async :refer (alts! chan close! timeout <! >!)])
-  (:refer-clojure :exclude [merge]))
+  (:refer-clojure :exclude [merge cons zip]))
 
 (deftype Behavior [func]
   IDeref
@@ -149,3 +149,40 @@
     (doseq [s streams]
       (sub s ch))
     (events ch true #(close! ch) streams)))
+
+(defn cons
+  "Return a new event stream with an additional value added to the beginning."
+  [value stream]
+  (let [ch (tap stream)]
+    (go (>! ch (evt value)))
+    (events ch true #(close! ch) stream)))
+
+(def ^:private no-value (js/Object.))
+
+(defn- no-value? [x]
+  (identical? x no-value))
+
+(defn- zip-ch [ins]
+  (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
+        out   (chan)]
+    (go-loop [value (mapv (core/constantly no-value) ins)]
+      (let [[data in] (alts! ins)]
+        (if-let [[t v] data]
+          (let [value (assoc value (index in) v)]
+            (when-not (some no-value? value)
+              (>! out [t value]))
+            (recur value))
+          (close! out))))
+    out))
+
+(defn- close-all! [chs]
+  (doseq [ch chs]
+    (close! ch)))
+
+(defn zip
+  "Combine multiple streams into one. On an event from any input stream, a
+  vector will be pushed to the returned stream containing the latest events
+  of all input streams."
+  [& streams]
+  (let [chs (mapv tap streams)]
+    (events (zip-ch chs) true #(close-all! chs) streams)))
