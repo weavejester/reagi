@@ -3,6 +3,7 @@
 /classes
 /checkouts
 /doc
+/out
 pom.xml
 pom.xml.asc
 *.jar
@@ -12,3 +13,4 @@ pom.xml.asc
 .lein-plugins
 .lein-repl-history
 .nrepl-port
+.repl
