@@ -4,7 +4,7 @@
   (:require [cljs.core :as core]
             [cljs.core.async :refer (alts! chan close! timeout <! >!)])
   (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
-                            reduce count]))
+                            reduce count cycle delay]))
 
 (deftype Behavior [func]
   IDeref
@@ -258,3 +258,76 @@
   "Change an initial value based on an event stream of functions."
   [init stream]
   (reduce #(%2 %1) init stream))
+
+(defn- uniq-ch [in]
+  (let [out (chan)]
+    (go-loop [prev no-value]
+      (if-let [[t val] (<! in)]
+        (do (if (or (no-value? prev) (not= val prev))
+              (>! out [t val]))
+            (recur val))
+        (close! out)))
+    out))
+
+(defn uniq
+  "Remove any successive duplicates from the stream."
+  [stream]
+  (let [ch (tap stream)]
+    (events (uniq-ch ch) true #(close! ch) stream)))
+
+(defn cycle
+  "Incoming events cycle a sequence of values. Useful for switching between
+  states."
+  [values stream]
+  (->> (reduce (fn [xs _] (next xs)) (core/cycle values) stream)
+       (map first)))
+
+(defn- throttle-ch [timeout-ms in]
+  (let [out (chan)]
+    (go-loop [t0 0]
+      (if-let [[t1 val] (<! in)]
+        (do (if (>= (- t1 t0) timeout-ms)
+              (>! out [t1 val]))
+            (recur t1))
+        (close! out)))
+    out))
+
+(defn throttle
+  "Remove any events in a stream that occur too soon after the prior event.
+  The timeout is specified in milliseconds."
+  [timeout-ms stream]
+  (let [ch (tap stream)]
+    (events (throttle-ch timeout-ms ch) true #(close! ch) stream)))
+
+(defn- run-sampler
+  [ch ref interval stop?]
+  (go-loop []
+    (<! (timeout interval))
+    (when-not @stop?
+      (>! ch (evt @ref))
+      (recur))))
+
+(defn sample
+  "Turn a reference into an event stream by deref-ing it at fixed intervals.
+  The interval time is specified in milliseconds."
+  [interval-ms reference]
+  (let [ch    (chan)
+        stop? (atom false)]
+    (run-sampler ch reference interval-ms stop?)
+    (events ch true #(reset! stop? true))))
+
+(defn- delay-ch [delay-ms ch]
+  (let [out (chan)]
+    (go-loop []
+      (if-let [val (<! ch)]
+        (do (<! (timeout delay-ms))
+            (>! out val)
+            (recur))
+        (close! out)))
+    out))
+
+(defn delay
+  "Delay all events by the specified number of milliseconds."
+  [delay-ms stream]
+  (let [ch (tap stream)]
+    (events (delay-ch delay-ms ch) true #(close! ch) stream)))
