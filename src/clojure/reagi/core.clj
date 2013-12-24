@@ -1,7 +1,7 @@
 (ns reagi.core
-  (:import java.lang.ref.WeakReference)
   (:require [clojure.core :as core]
-            [clojure.core.async :refer (alts! alts!! chan close! go timeout <! >! <!! >!!)])
+            [clojure.core.async :refer (alts! alts!! chan close! go go-loop timeout
+                                        <! >! <!! >!!)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
                             merge reduce cycle count delay cons time]))
 
@@ -40,11 +40,11 @@
 
 (defn- track [head ch]
   (let [out (chan)]
-    (go (loop []
-          (when-let [m (<! ch)]
-            (reset! head m)
-            (>! out m)
-            (recur))))
+    (go-loop []
+      (when-let [m (<! ch)]
+        (reset! head m)
+        (>! out m)
+        (recur)))
     out))
 
 (defprotocol ^:no-doc Observable
@@ -55,11 +55,11 @@
 
 (defn- observable [channel]
   (let [observers (atom #{})]
-    (go (loop []
-          (when-let [m (<! channel)]
-            (doseq [o @observers]
-              (>! o m))
-            (recur))))
+    (go-loop []
+      (when-let [m (<! channel)]
+        (doseq [o @observers]
+          (>! o m))
+        (recur)))
     (reify
       Observable
       (sub [_ ch]   (swap! observers conj ch))
@@ -198,14 +198,14 @@
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
         out   (chan)]
-    (go (loop [value (mapv (core/constantly undefined) ins)]
-          (let [[data in] (alts! ins)]
-            (if-let [[t v] data]
-              (let [value (assoc value (index in) v)]
-                (do (if-not (some undefined? value)
-                      (>! out [t value]))
-                    (recur value)))
-              (close! out)))))
+    (go-loop [value (mapv (core/constantly undefined) ins)]
+      (let [[data in] (alts! ins)]
+        (if-let [[t v] data]
+          (let [value (assoc value (index in) v)]
+            (when-not (some undefined? value)
+              (>! out [t value]))
+            (recur value))
+          (close! out))))
     out))
 
 (defn- close-all! [chs]
@@ -222,12 +222,12 @@
 
 (defn- mapcat-ch [f in]
   (let [out (chan)]
-    (go (loop []
-          (if-let [[t msg] (<! in)]
-            (let [xs (f msg)]
-              (doseq [x xs] (>! out [t x]))
-              (recur))
-            (close! out))))
+    (go-loop []
+      (if-let [[t msg] (<! in)]
+        (let [xs (f msg)]
+          (doseq [x xs] (>! out [t x]))
+          (recur))
+        (close! out)))
     out))
 
 (defn mapcat
@@ -293,12 +293,12 @@
 
 (defn- uniq-ch [in]
   (let [out (chan)]
-    (go (loop [prev undefined]
-          (if-let [[t val] (<! in)]
-            (do (if (or (undefined? prev) (not= val prev))
-                  (>! out [t val]))
-                (recur val))
-            (close! out))))
+    (go-loop [prev undefined]
+      (if-let [[t val] (<! in)]
+        (do (if (or (undefined? prev) (not= val prev))
+              (>! out [t val]))
+            (recur val))
+        (close! out)))
     out))
 
 (defn uniq
@@ -316,12 +316,12 @@
 
 (defn- throttle-ch [timeout-ms in]
   (let [out (chan)]
-    (go (loop [t0 0]
-          (if-let [[t1 val] (<! in)]
-            (do (if (>= (- t1 t0) timeout-ms)
-                  (>! out [t1 val]))
-                (recur t1))
-            (close! out))))
+    (go-loop [t0 0]
+      (if-let [[t1 val] (<! in)]
+        (do (if (>= (- t1 t0) timeout-ms)
+              (>! out [t1 val]))
+            (recur t1))
+        (close! out)))
     out))
 
 (defn throttle
@@ -333,11 +333,11 @@
 
 (defn- run-sampler
   [ch ref interval stop?]
-  (go (loop []
-        (<! (timeout interval))
-        (when-not @stop?
-          (>! ch (evt @ref))
-          (recur)))))
+  (go-loop []
+    (<! (timeout interval))
+    (when-not @stop?
+      (>! ch (evt @ref))
+      (recur))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
@@ -350,12 +350,12 @@
 
 (defn- delay-ch [delay-ms ch]
   (let [out (chan)]
-    (go (loop []
-          (if-let [val (<! ch)]
-            (do (<! (timeout delay-ms))
-                (>! out val)
-                (recur))
-            (close! out))))
+    (go-loop []
+      (if-let [val (<! ch)]
+        (do (<! (timeout delay-ms))
+            (>! out val)
+            (recur))
+        (close! out)))
     out))
 
 (defn delay
