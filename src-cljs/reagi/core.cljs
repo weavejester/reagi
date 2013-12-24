@@ -3,7 +3,7 @@
                    [cljs.core.async.macros :refer (go go-loop)])
   (:require [cljs.core :as core]
             [cljs.core.async :refer (alts! chan close! timeout <! >!)])
-  (:refer-clojure :exclude [merge cons zip]))
+  (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly]))
 
 (deftype Behavior [func]
   IDeref
@@ -186,3 +186,41 @@
   [& streams]
   (let [chs (mapv tap streams)]
     (events (zip-ch chs) true #(close-all! chs) streams)))
+
+(defn- mapcat-ch [f in]
+  (let [out (chan)]
+    (go-loop []
+      (if-let [[t msg] (<! in)]
+        (let [xs (f msg)]
+          (doseq [x xs] (>! out [t x]))
+          (recur))
+        (close! out)))
+    out))
+
+(defn mapcat
+  "Mapcat a function over a stream."
+  ([f stream]
+     (let [ch (tap stream)]
+       (events (mapcat-ch f ch) true #(close! ch) stream)))
+  ([f stream & streams]
+     (mapcat (partial apply f) (apply zip stream streams))))
+
+(defn map
+  "Map a function over a stream."
+  [f & streams]
+  (apply mapcat (comp list f) streams))
+
+(defn filter
+  "Filter a stream by a predicate."
+  [pred stream]
+  (mapcat #(if (pred %) (list %)) stream))
+
+(defn remove
+  "Remove all items in a stream the predicate does not match."
+  [pred stream]
+  (filter (complement pred) stream))
+
+(defn constantly
+  "Constantly map the same value over an event stream."
+  [value stream]
+  (map (core/constantly value) stream))
