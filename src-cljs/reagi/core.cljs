@@ -3,7 +3,8 @@
                    [cljs.core.async.macros :refer (go go-loop)])
   (:require [cljs.core :as core]
             [cljs.core.async :refer (alts! chan close! timeout <! >!)])
-  (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly]))
+  (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
+                            reduce count]))
 
 (deftype Behavior [func]
   IDeref
@@ -224,3 +225,36 @@
   "Constantly map the same value over an event stream."
   [value stream]
   (map (core/constantly value) stream))
+
+(defn- reduce-ch [f ch]
+  (let [out (chan)]
+    (go (let [[t init] (<! ch)]
+          (>! out [t init])
+          (loop [acc init]
+            (if-let [[t val] (<! ch)]
+              (let [val (f acc val)]
+                (>! out [t val])
+                (recur val))
+              (close! out)))))
+    out))
+
+(defn reduce
+  "Create a new stream by applying a function to the previous return value and
+  the current value of the source stream."
+  ([f stream]
+     (let [ch (tap stream)]
+       (events (reduce-ch f ch) true #(close! ch) stream)))
+  ([f init stream]
+     (let [ch (tap stream)]
+       (go (>! ch (evt init)))
+       (events (reduce-ch f ch) true #(close! ch) stream))))
+
+(defn count
+  "Return an accumulating count of the items in a stream."
+  [stream]
+  (reduce (fn [x _] (inc x)) 0 stream))
+
+(defn accum
+  "Change an initial value based on an event stream of functions."
+  [init stream]
+  (reduce #(%2 %1) init stream))
