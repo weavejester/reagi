@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/weavejester/reagi.png?branch=master)](https://travis-ci.org/weavejester/reagi)
 
-Reagi is a [FRP][1] library for Clojure and ClojureScript, built on
+Reagi is an [FRP][1] library for Clojure and ClojureScript, built on
 top of [core.async][2].
 
 [1]: http://en.wikipedia.org/wiki/Functional_reactive_programming

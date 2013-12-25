@@ -1,5 +1,5 @@
 (defproject reagi "0.7.0-SNAPSHOT"
-  :description "An experimental FRP library"
+  :description "An FRP library for Clojure and ClojureScript"
   :url "https://github.com/weavejester/reagi"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
