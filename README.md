@@ -2,9 +2,8 @@
 
 [![Build Status](https://travis-ci.org/weavejester/reagi.png?branch=master)](https://travis-ci.org/weavejester/reagi)
 
-An experimental [FRP][1] library for Clojure based on [core.async][2].
-
-Note that the API is not yet fixed in stone, and may change.
+Reagi is a [FRP][1] library for Clojure and ClojureScript, built on
+top of [core.async][2].
 
 [1]: http://en.wikipedia.org/wiki/Functional_reactive_programming
 [2]: https://github.com/clojure/core.async
@@ -13,7 +12,7 @@ Note that the API is not yet fixed in stone, and may change.
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.6.3"]
+    [reagi "0.7.0-SNAPSHOT"]
 
 ## Overview
 
@@ -79,6 +78,20 @@ user=> @et
 ## Documentation
 
 * [API Docs](http://weavejester.github.io/reagi/reagi.core.html)
+
+
+## Differences in ClojureScript version
+
+The ClojureScript version of Reagi has two main differences from the
+Clojure version:
+
+1. Trying to deref an unrealized stream blocks the current thread in
+   Clojure, but raises an error in ClojureScript.
+
+2. Event streams that fall out of scope in Clojure are automatically
+   cleaned up. In ClojureScript, the `reagi.core/dispose` function
+   must be manually called on streams before they fall out of scope.
+
 
 ## License
 
