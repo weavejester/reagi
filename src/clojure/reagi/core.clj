@@ -258,9 +258,9 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(defn- reduce-ch [f ch]
+(defn- reduce-ch [f ch init-evt]
   (let [out (chan)]
-    (go (let [[t init] (<! ch)]
+    (go (let [[t init] (or init-evt (<! ch))]
           (>! out [t init])
           (loop [acc init]
             (if-let [[t val] (<! ch)]
@@ -270,16 +270,15 @@
               (close! out)))))
     out))
 
+(defn- reduce-evt [f init-evt stream]
+  (let [ch (tap stream)]
+    (events (reduce-ch f ch init-evt) true #(close! ch) stream)))
+
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
-  ([f stream]
-     (let [ch (tap stream)]
-       (events (reduce-ch f ch) true #(close! ch) stream)))
-  ([f init stream]
-     (let [ch (tap stream)]
-       (go (>! ch (evt init)))
-       (ensure (events (reduce-ch f ch) true #(close! ch) stream)))))
+  ([f stream] (reduce-evt f nil stream))
+  ([f init stream] (reduce-evt f (evt init) stream)))
 
 (defn count
   "Return an accumulating count of the items in a stream."
