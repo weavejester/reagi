@@ -234,6 +234,7 @@
     (let [a (atom false)]
       (r/sample 100 (r/behavior (reset! a true)))
       (System/gc)
+      (Thread/sleep 100)
       (reset! a false)
       (Thread/sleep 120)
       (is (= @a false))))
@@ -241,6 +242,7 @@
     (let [a (atom false)
           s (r/sample 100 (r/behavior (reset! a true)))]
       (System/gc)
+      (Thread/sleep 100)
       (reset! a false)
       (Thread/sleep 120)
       (is (= @a true)))))
