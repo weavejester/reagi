@@ -190,13 +190,6 @@
   [stream]
   (doto stream deref))
 
-(defn cons
-  "Return a new event stream with an additional value added to the beginning."
-  [value stream]
-  (let [ch (tap stream)]
-    (go (>! ch (box value)))
-    (ensure (events ch true #(close! ch) stream))))
-
 (def ^:private no-value (Object.))
 
 (defn- no-value? [x]
@@ -285,6 +278,11 @@
   ([f init stream]
      (let [ch (tap stream)]
        (events (reduce-ch f ch init) true #(close! ch) stream))))
+
+(defn cons
+  "Return a new event stream with an additional value added to the beginning."
+  [value stream]
+  (reduce (fn [_ x] x) value stream))
 
 (defn count
   "Return an accumulating count of the items in a stream."
