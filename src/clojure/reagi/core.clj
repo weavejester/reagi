@@ -197,19 +197,19 @@
     (go (>! ch (box value)))
     (ensure (events ch true #(close! ch) stream))))
 
-(def ^:private undefined (Object.))
+(def ^:private no-value (Object.))
 
-(defn- undefined? [x]
-  (identical? x undefined))
+(defn- no-value? [x]
+  (identical? x no-value))
 
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
         out   (chan)]
-    (go-loop [value (mapv (core/constantly undefined) ins)]
+    (go-loop [value (mapv (core/constantly no-value) ins)]
       (let [[data in] (alts! ins)]
         (if data
           (let [value (assoc value (index in) (unbox data))]
-            (when-not (some undefined? value)
+            (when-not (some no-value? value)
               (>! out (box value)))
             (recur value))
           (close! out))))
@@ -267,7 +267,7 @@
 
 (defn- reduce-ch [f ch init]
   (let [out (chan)]
-    (go (let [init (if (undefined? init) (unbox (<! ch)) init)]
+    (go (let [init (if (no-value? init) (unbox (<! ch)) init)]
           (>! out (box init))
           (loop [acc init]
             (if-let [msg (<! ch)]
@@ -281,7 +281,7 @@
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
   ([f stream]
-     (reduce f undefined stream))
+     (reduce f no-value stream))
   ([f init stream]
      (let [ch (tap stream)]
        (events (reduce-ch f ch init) true #(close! ch) stream))))
@@ -298,10 +298,10 @@
 
 (defn- uniq-ch [in]
   (let [out (chan)]
-    (go-loop [prev undefined]
+    (go-loop [prev no-value]
       (if-let [msg (<! in)]
         (let [val (unbox msg)]
-          (if (or (undefined? prev) (not= val prev))
+          (if (or (no-value? prev) (not= val prev))
             (>! out (box val)))
           (recur val))
         (close! out)))
