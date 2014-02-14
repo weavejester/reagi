@@ -86,3 +86,52 @@
         (is (= @z [3 4]))
         (done))))
 
+(deftest ^:async test-map-basic
+  (let [s (r/events)
+        e (r/map inc s)]
+    (go (<! (push!! s 1))
+        (is (= 2 @e))
+        (done))))
+
+(deftest ^:async test-map-multiple
+  (let [s1 (r/events)
+        s2 (r/events)
+        e  (r/map + s1 s2)]
+    (go (<! (push!! s1 4))
+        (<! (push!! s2 6))
+        (is (= @e 10))
+        (done))))
+
+(deftest ^:async test-mapcat-basic
+  (let [s (r/events)
+        e (r/mapcat (comp list inc) s)]
+    (go (<! (push!! s 1))
+        (is (= 2 @e))
+        (done))))
+
+(deftest ^:async test-mapcat-multiple
+  (let [s1 (r/events)
+        s2 (r/events)
+        e  (r/mapcat (comp list +) s1 s2)]
+    (go (<! (push!! s1 2))
+        (<! (push!! s2 3))
+        (is (= @e 5))
+        (done))))
+
+(deftest ^:async test-filter
+  (let [s (r/events)
+        e (r/filter even? s)]
+    (go (<! (push!! s 1))
+        (is (not (realized? e)))
+        (<! (push!! s 2 3))
+        (is (= @e 2))
+        (done))))
+
+(deftest ^:async test-remove
+  (let [s (r/events)
+        e (r/remove even? s)]
+    (go (<! (push!! s 0))
+        (is (not (realized? e)))
+        (<! (push!! s 1 2))
+        (is (= @e 1))
+        (done))))
