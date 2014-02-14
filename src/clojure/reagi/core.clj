@@ -38,6 +38,18 @@
   (let [t @time]
     (behavior (- @time t))))
 
+(defprotocol Boxed
+  (unbox [x] "Unbox a boxed value."))
+
+(defn box
+  "Box a value to ensure it can be sent through a channel."
+  [x]
+  (reify Boxed (unbox [_] x)))
+
+(extend-protocol Boxed
+  Object (unbox [x] x)
+  nil    (unbox [x] x))
+
 (defn- track [head ch]
   (let [out (chan)]
     (go-loop []
@@ -85,16 +97,11 @@
 (defprotocol ^:no-doc Dependencies
   (^:no-doc deps* [x]))
 
-(defn evt
-  "Create an event suitable to be pushed onto a channel."
-  [msg]
-  [(System/currentTimeMillis) msg])
-
 (defn- deref-events [ob head ms timeout-val]
   (if-let [hd @head]
-    (second hd)
+    (unbox hd)
     (if-let [val (peek!! ob ms)]
-      (second val)
+      (unbox val)
       timeout-val)))
 
 ;; reify creates an object twice, leading to the finalize method
@@ -113,7 +120,7 @@
   (invoke [stream msg]
     (if closed?
       (throw (UnsupportedOperationException. "Cannot push to closed event stream"))
-      (do (>!! ch (evt msg))
+      (do (>!! ch (box msg))
           stream)))
   Observable
   (sub [_ c]
@@ -187,7 +194,7 @@
   "Return a new event stream with an additional value added to the beginning."
   [value stream]
   (let [ch (tap stream)]
-    (go (>! ch (evt value)))
+    (go (>! ch (box value)))
     (ensure (events ch true #(close! ch) stream))))
 
 (def ^:private undefined (Object.))
@@ -200,10 +207,10 @@
         out   (chan)]
     (go-loop [value (mapv (core/constantly undefined) ins)]
       (let [[data in] (alts! ins)]
-        (if-let [[t v] data]
-          (let [value (assoc value (index in) v)]
+        (if data
+          (let [value (assoc value (index in) (unbox data))]
             (when-not (some undefined? value)
-              (>! out [t value]))
+              (>! out (box value)))
             (recur value))
           (close! out))))
     out))
@@ -223,9 +230,9 @@
 (defn- mapcat-ch [f in]
   (let [out (chan)]
     (go-loop []
-      (if-let [[t msg] (<! in)]
-        (let [xs (f msg)]
-          (doseq [x xs] (>! out [t x]))
+      (if-let [msg (<! in)]
+        (let [xs (f (unbox msg))]
+          (doseq [x xs] (>! out (box x)))
           (recur))
         (close! out)))
     out))
@@ -258,27 +265,26 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(defn- reduce-ch [f ch init-evt]
+(defn- reduce-ch [f ch init]
   (let [out (chan)]
-    (go (let [[t init] (or init-evt (<! ch))]
-          (>! out [t init])
+    (go (let [init (if (undefined? init) (unbox (<! ch)) init)]
+          (>! out (box init))
           (loop [acc init]
-            (if-let [[t val] (<! ch)]
-              (let [val (f acc val)]
-                (>! out [t val])
+            (if-let [msg (<! ch)]
+              (let [val (f acc (unbox msg))]
+                (>! out (box val))
                 (recur val))
               (close! out)))))
     out))
 
-(defn- reduce-evt [f init-evt stream]
-  (let [ch (tap stream)]
-    (events (reduce-ch f ch init-evt) true #(close! ch) stream)))
-
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
   the current value of the source stream."
-  ([f stream] (reduce-evt f nil stream))
-  ([f init stream] (reduce-evt f (evt init) stream)))
+  ([f stream]
+     (reduce f undefined stream))
+  ([f init stream]
+     (let [ch (tap stream)]
+       (events (reduce-ch f ch init) true #(close! ch) stream))))
 
 (defn count
   "Return an accumulating count of the items in a stream."
@@ -293,10 +299,11 @@
 (defn- uniq-ch [in]
   (let [out (chan)]
     (go-loop [prev undefined]
-      (if-let [[t val] (<! in)]
-        (do (if (or (undefined? prev) (not= val prev))
-              (>! out [t val]))
-            (recur val))
+      (if-let [msg (<! in)]
+        (let [val (unbox msg)]
+          (if (or (undefined? prev) (not= val prev))
+            (>! out (box val)))
+          (recur val))
         (close! out)))
     out))
 
@@ -316,10 +323,11 @@
 (defn- throttle-ch [timeout-ms in]
   (let [out (chan)]
     (go-loop [t0 0]
-      (if-let [[t1 val] (<! in)]
-        (do (if (>= (- t1 t0) timeout-ms)
-              (>! out [t1 val]))
-            (recur t1))
+      (if-let [msg (<! in)]
+        (let [t1 (System/currentTimeMillis)]
+          (if (>= (- t1 t0) timeout-ms)
+            (>! out msg))
+          (recur t1))
         (close! out)))
     out))
 
@@ -335,7 +343,7 @@
   (go-loop []
     (<! (timeout interval))
     (when-not @stop?
-      (>! ch (evt @ref))
+      (>! ch (box @ref))
       (recur))))
 
 (defn sample
@@ -350,9 +358,9 @@
 (defn- delay-ch [delay-ms ch]
   (let [out (chan)]
     (go-loop []
-      (if-let [val (<! ch)]
+      (if-let [msg (<! ch)]
         (do (<! (timeout delay-ms))
-            (>! out val)
+            (>! out msg)
             (recur))
         (close! out)))
     out))

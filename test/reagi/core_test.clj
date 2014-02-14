@@ -19,6 +19,13 @@
     (is (> @d 0.1))
     (is (< @d 0.2))))
 
+(deftest test-boxed
+  (is (= (r/unbox 1) 1))
+  (is (= (r/unbox nil) nil))
+  (is (not= (r/box nil) nil))
+  (is (= (r/unbox (r/box nil)) nil))
+  (is (= (r/unbox (r/box 1)) 1)))
+
 (deftest test-events
   (testing "push"
     (let [e (r/events)]
