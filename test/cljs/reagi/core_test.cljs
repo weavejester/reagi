@@ -1,6 +1,8 @@
 (ns reagi.core-test
-  (:require-macros [cemerick.cljs.test :refer (is deftest testing done)])
+  (:require-macros [cemerick.cljs.test :refer (is deftest testing done)]
+                   [cljs.core.async.macros :refer (go)])
   (:require [cemerick.cljs.test :as t]
+            [cljs.core.async :refer (<! >! timeout)]
             [reagi.core :as r :include-macros true]))
 
 (deftest test-behavior
@@ -16,8 +18,7 @@
 
 (deftest ^:async test-delta
   (let [d (r/delta)]
-    (js/setTimeout
-     #(do (is (> @d 0.1))
-          (is (< @d 0.2))
-          (done))
-     110)))
+    (go (<! (timeout 110))
+        (is (> @d 0.1))
+        (is (< @d 0.2))
+        (done))))
