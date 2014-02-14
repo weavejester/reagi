@@ -51,3 +51,38 @@
 (deftest test-events?
   (is (r/events? (r/events)))
   (is (not (r/events? "foo"))))
+
+(defn- push!! [stream & msgs]
+  (go (apply r/push! stream msgs)
+      (<! (timeout (* 10 (count msgs))))))
+
+(deftest ^:async test-push!
+  (let [e (r/events)]
+    (go (<! (push!! e 1))
+        (is (= 1 @e))
+        (<! (push!! e 2 3 4))
+        (is (= 4 @e))
+        (done))))
+
+(deftest ^:async test-cons
+  (let [e (r/events)
+        c (r/cons 5 e)]
+    (go (is (realized? c))
+        (is (= @c 5))
+        (<! (push!! e 10))
+        (is (= @c 10))
+        (done))))
+
+(deftest ^:async test-zip
+  (let [e1 (r/events)
+        e2 (r/events)
+        z  (r/zip e1 e2)]
+    (go (<! (push!! e1 1))
+        (<! (push!! e2 2))
+        (is (= @z [1 2]))
+        (<! (push!! e1 3))
+        (is (= @z [3 2]))
+        (<! (push!! e2 4))
+        (is (= @z [3 4]))
+        (done))))
+
