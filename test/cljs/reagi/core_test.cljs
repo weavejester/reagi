@@ -29,3 +29,25 @@
   (is (not= (r/box nil) nil))
   (is (= (r/unbox (r/box nil)) nil))
   (is (= (r/unbox (r/box 1)) 1)))
+
+(deftest ^:async test-event-push
+  (let [e (r/events)]
+    (go (e 1)
+        (<! (timeout 20))
+        (is (= 1 @e))
+        (e 2)
+        (<! (timeout 20))
+        (is (= 2 @e))
+        (done))))
+
+(deftest ^:async test-event-realized
+  (let [e (r/events)]
+    (go (is (not (realized? e)))
+        (e 1)
+        (<! (timeout 20))
+        (is (realized? e))
+        (done))))
+
+(deftest test-events?
+  (is (r/events? (r/events)))
+  (is (not (r/events? "foo"))))
