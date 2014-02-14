@@ -135,3 +135,73 @@
         (<! (push!! s 1 2))
         (is (= @e 1))
         (done))))
+
+(deftest ^:async test-reduce-no-init
+  (let [s (r/events)
+        e (r/reduce + s)]
+    (go (is (not (realized? e)))
+        (<! (push!! s 1))
+        (is (realized? e))
+        (is (= @e 1))
+        (<! (push!! s 2))
+        (is (= @e 3))
+        (<! (push!! s 3 4))
+        (is (= @e 10))
+        (done))))
+
+(deftest ^:async test-reduce-init
+  (let [s (r/events)
+        e (r/reduce + 0 s)]
+    (go (is (realized? e))
+        (is (= @e 0))
+        (<! (push!! s 1))
+        (is (= @e 1))
+        (<! (push!! s 2 3))
+        (is (= @e 6))
+        (done))))
+
+(deftest ^:async test-reduce-init-persists
+  (let [s (r/events)
+        e (r/map inc (r/reduce + 0 s))]
+    (go (<! (timeout 20))
+        (is (= @e 1))
+        (done))))
+
+(deftest ^:async test-uniq
+  (let [s (r/events)
+        e (r/reduce + 0 (r/uniq s))]
+    (go (<! (push!! s 1 1))
+        (is (= 1 @e))
+        (<! (push!! s 1 2))
+        (is (= 3 @e))
+        (done))))
+
+(deftest ^:async test-count
+  (let [e (r/events)
+        c (r/count e)]
+    (go (is (= @c 0))
+        (<! (push!! e 1))
+        (is (= @c 1))
+        (<! (push!! e 2 3))
+        (is (= @c 3))
+        (done))))
+
+(deftest ^:async test-cycle
+  (let [s (r/events)
+        e (r/cycle [:on :off] s)]
+    (go (<! (timeout 20))
+        (is (= :on @e))
+        (<! (push!! s 1))
+        (is (= :off @e))
+        (<! (push!! s 1))
+        (is (= :on @e))
+        (done))))
+
+(deftest ^:async test-constantly
+  (let [s (r/events)
+        e (r/constantly 1 s)
+        a (r/reduce + 0 e)]
+    (go (<! (push!! s 2 4 5))
+        (is (= @e 1))
+        (is (= @a 3))
+        (done))))
