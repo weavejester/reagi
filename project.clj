@@ -9,7 +9,7 @@
   :plugins [[codox "0.6.6"]
             [com.cemerick/austin "0.1.3"]
             [lein-cljsbuild "1.0.1"]
-            [com.cemerick/clojurescript.test "0.2.2"]]
+            [com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
   :cljsbuild
