@@ -205,3 +205,27 @@
         (is (= @e 1))
         (is (= @a 3))
         (done))))
+
+(deftest ^:async test-throttle
+  (let [s (r/events)
+        e (r/throttle 100 s)]
+    (go (r/push! s 1 2)
+        (<! (timeout 20))
+        (is (= @e 1))
+        (<! (timeout 101))
+        (r/push! s 3)
+        (<! (timeout 50))
+        (r/push! s 4)
+        (is (= @e 3))
+        (done))))
+
+(deftest ^:async test-sample
+  (let [a (atom 0)
+        s (r/sample 100 a)]
+    (go (<! (timeout 120))
+        (is (= @s 0))
+        (swap! a inc)
+        (is (= @s 0))
+        (<! (timeout 120))
+        (is (= @s 1))
+        (done))))
