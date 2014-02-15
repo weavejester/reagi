@@ -72,10 +72,7 @@
       (sub [_ ch]   (swap! observers conj ch))
       (unsub [_ ch] (swap! observers disj ch)))))
 
-(defn tap
-  "Create a core.async channel that receives events from the supplied event
-  stream."
-  [stream]
+(defn- tap [stream]
   (let [ch (chan)]
     (sub stream ch)
     ch))
