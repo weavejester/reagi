@@ -8,14 +8,19 @@
                  [org.clojure/clojurescript "0.0-2156"]]
   :plugins [[codox "0.6.6"]
             [com.cemerick/austin "0.1.3"]
-            [lein-cljsbuild "1.0.1"]
-            [com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
+            [lein-cljsbuild "1.0.1"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
   :cljsbuild
-  {:builds [{:source-paths ["src/clojure" "src/cljs" "test/cljs"]
-             :compiler {:output-to "target/main.js"}}]
-   :test-commands {"unit-tests" ["phantomjs" :runner
-                                 "target/main.js"]}}
+  {:builds [{:source-paths ["src/clojure" "src/cljs"]
+             :compiler {:output-to "target/main.js"}}]}
   :profiles
-  {:dev {:dependencies [[criterium "0.4.2"]]}})
+  {:dev  {:dependencies [[criterium "0.4.2"]]}
+   :test {:plugins [[com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
+          :cljsbuild
+          {:builds ^:replace [{:source-paths ["src/clojure" "src/cljs" "test/cljs"]
+                               :compiler {:output-to "target/test.js"}}]
+           :test-commands {"unit-tests" ["phantomjs" :runner "target/test.js"]}}}}
+  :aliases
+  {"test-cljs" ["with-profile" "test" "cljsbuild" "test"]
+   "test-all"  ["do" "test," "test-cljs"]})
