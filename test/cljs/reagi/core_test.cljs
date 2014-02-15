@@ -248,3 +248,14 @@
         (<! (timeout 120))
         (is (= @s 1))
         (done))))
+
+(deftest ^:async test-dispose
+  (let [a (atom nil)
+        s (r/events)
+        e (r/map #(reset! a %) s)]
+    (go (<! (push!! s 1))
+        (is (= @a 1))
+        (r/dispose e)
+        (<! (push!! s 2))
+        (is (= @a 1))
+        (done))))
