@@ -54,7 +54,9 @@
 
 (defprotocol Observable
   (sub [stream channel]
-    "Tell the stream to send events to an existing core.async channel.")
+    "Tell the stream to send events to an existing core.async channel. The
+    events sent to the channel are boxed. To send the events unboxed, use the
+    sink! function.")
   (unsub [stream channel]
     "Tell the stream to stop sending events the the supplied channel."))
 
