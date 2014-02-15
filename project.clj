@@ -1,4 +1,4 @@
-(defproject reagi "0.7.1"
+(defproject reagi "0.8.0"
   :description "An FRP library for Clojure and ClojureScript"
   :url "https://github.com/weavejester/reagi"
   :license {:name "Eclipse Public License"
