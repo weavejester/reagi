@@ -75,6 +75,14 @@
         (is (= 4 @e))
         (done))))
 
+(deftest ^:async test-sink!
+  (let [e  (r/events)
+        ch (chan 1)]
+    (r/sink! e ch)
+    (go (r/push! e :foo)
+        (is (= (<! ch) :foo))
+        (done))))
+
 (deftest ^:async test-cons
   (let [e (r/events)
         c (r/cons 5 e)]

@@ -1,7 +1,7 @@
 (ns reagi.core
   (:require [clojure.core :as core]
             [clojure.core.async :refer (alts! alts!! chan close! go go-loop timeout
-                                        <! >! <!! >!!)])
+                                        <! >! <!! >!! map>)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
                             merge reduce cycle count delay cons time]))
 
@@ -179,6 +179,12 @@
   ([stream msg & msgs]
      (doseq [m (core/cons msg msgs)]
        (stream m))))
+
+(defn sink!
+  "Deliver events on an event stream to a core.async channel. The events cannot
+  include a nil value."
+  [stream channel]
+  (sub stream (map> unbox channel)))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are

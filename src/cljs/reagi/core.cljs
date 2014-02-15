@@ -2,7 +2,7 @@
   (:require-macros [reagi.core :refer (behavior)]
                    [cljs.core.async.macros :refer (go go-loop)])
   (:require [cljs.core :as core]
-            [cljs.core.async :refer (alts! chan close! timeout <! >!)])
+            [cljs.core.async :refer (alts! chan close! timeout <! >! map>)])
   (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
                             reduce count cycle delay]))
 
@@ -153,6 +153,12 @@
   ([stream msg & msgs]
      (doseq [m (core/cons msg msgs)]
        (stream m))))
+
+(defn sink!
+  "Deliver events on an event stream to a core.async channel. The events cannot
+  include a nil value."
+  [stream channel]
+  (sub stream (map> unbox channel)))
 
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
