@@ -140,18 +140,18 @@
 (defn events
   "Create an referential stream of events. The stream may be instantiated from
   an existing core.async channel, otherwise a new one will be created. If the
-  stream is closed, it cannot be pushed to.
+  stream is closed, it cannot be pushed to. By default, streams created from
+  channels are closed, while streams created without a channel are open.
 
   A clean-up function may optionally be specified, which is evaluated when the
   stream object is finalized (i.e. GCed). A list of dependent streams may also
   be included, in order to protect them against premature GC.
 
-  If you're not deriving the event stream from an existing channel or another
-  stream, use the no-argument form."
+  Most of the time you'll want to use the zero or one argument form."
   ([]
-     (events (chan)))
+     (events (chan) false))
   ([ch]
-     (events ch false))
+     (events ch true))
   ([ch closed?]
      (events ch closed? no-op))
   ([ch closed? clean-up]

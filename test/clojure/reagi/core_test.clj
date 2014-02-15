@@ -1,6 +1,7 @@
 (ns reagi.core-test
   (:require [clojure.test :refer :all]
-            [reagi.core :as r]))
+            [reagi.core :as r]
+            [clojure.core.async :refer (chan >!!)]))
 
 (deftest test-behavior
   (let [a (atom 1)
@@ -47,7 +48,14 @@
       (is (= (deref e 100 :missing) :missing))
       (let [t1 (System/currentTimeMillis)]
         (is (and (>= (- t1 t0) 100)
-                 (<= (- t1 t0) 110)))))))
+                 (<= (- t1 t0) 110))))))
+  (testing "from channel"
+    (let [ch (chan)
+          e  (r/events ch)]
+      (is (thrown? UnsupportedOperationException (e 1)))
+      (>!! ch :foo)
+      (is (realized? e))
+      (is (= @e :foo)))))
 
 (deftest test-events?
   (is (r/events? (r/events)))

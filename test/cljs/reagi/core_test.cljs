@@ -2,7 +2,7 @@
   (:require-macros [cemerick.cljs.test :refer (is deftest testing done)]
                    [cljs.core.async.macros :refer (go)])
   (:require [cemerick.cljs.test :as t]
-            [cljs.core.async :refer (<! >! timeout)]
+            [cljs.core.async :refer (<! >! chan timeout)]
             [reagi.core :as r :include-macros true]))
 
 (deftest test-behavior
@@ -46,6 +46,16 @@
         (e 1)
         (<! (timeout 20))
         (is (realized? e))
+        (done))))
+
+(deftest ^:async test-event-channel
+  (let [ch (chan)
+        e  (r/events ch)]
+    (is (thrown? js/Error (e 1)))
+    (go (>! ch :foo)
+        (<! (timeout 20))
+        (is (realized? e))
+        (is (= @e :foo))
         (done))))
 
 (deftest test-events?
