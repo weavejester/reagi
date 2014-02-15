@@ -8,7 +8,7 @@
                  [org.clojure/clojurescript "0.0-2156"]]
   :plugins [[codox "0.6.6"]
             [com.cemerick/austin "0.1.3"]
-            [lein-cljsbuild "1.0.1"]]
+            [lein-cljsbuild "1.0.2"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
   :cljsbuild
