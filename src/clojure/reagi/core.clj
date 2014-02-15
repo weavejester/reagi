@@ -38,7 +38,7 @@
   (let [t @time]
     (behavior (- @time t))))
 
-(defprotocol Boxed
+(defprotocol ^:no-doc Boxed
   (unbox [x] "Unbox a boxed value."))
 
 (defn box
