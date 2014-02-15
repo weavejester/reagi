@@ -84,7 +84,7 @@
 (defprotocol Disposable
   (dispose [x] "Clean up any resources an object has before it goes out of scope."))
 
-(deftype Events [ch closed? clean-up ob head deps]
+(deftype Events [ch closed clean-up ob head deps]
   IPending
   (-realized? [_] (not (nil? @head)))
   IDeref
@@ -94,7 +94,7 @@
       (throw (js/Error. "Cannot deref an unrealized event stream"))))
   IFn
   (-invoke [stream msg]
-    (if closed?
+    (if closed
       (throw (js/Error. "Cannot push to closed event stream"))
       (do (go (>! ch (box msg)))
           stream)))
@@ -111,34 +111,39 @@
 
 (defn- no-op [])
 
+(defn- make-events [ch closed? clean-up deps]
+  (let [head (atom nil)
+        ob   (observable (track head ch))]
+    (Events. ch closed? clean-up ob head deps)))
+
 (defn events
   "Create an referential stream of events. The stream may be instantiated from
-  an existing core.async channel, otherwise a new one will be created. If the
-  stream is closed, it cannot be pushed to. By default, streams created from
-  channels are closed, while streams created without a channel are open.
+  an existing core.async channel, otherwise a new one will be created. Streams
+  instantiated from existing channels are considered closed, and cannot be
+  pushed to.
 
   A clean-up function may optionally be specified, which is evaluated when the
-  stream object is finalized (i.e. GCed). A list of dependent streams may also
-  be included, in order to protect them against premature GC.
-
-  Most of the time you'll want to use the zero or one argument form."
+  stream object is disposed. A list of dependent streams may also be included,
+  in order to protect them against premature GC."
   ([]
-     (events (chan) false))
+     (make-events (chan) false no-op nil))
   ([ch]
-     (events ch true))
-  ([ch closed?]
-     (events ch closed? no-op))
-  ([ch closed? clean-up]
-     (events ch closed? clean-up nil))
-  ([ch closed? clean-up deps]
-     (let [head (atom nil)
-           ob   (observable (track head ch))]
-       (Events. ch closed? clean-up ob head deps))))
+     (events ch no-op))
+  ([ch clean-up]
+     (events ch clean-up nil))
+  ([ch clean-up deps]
+     (make-events ch true clean-up deps)))
 
 (defn events?
   "Return true if the object is a stream of events."
   [x]
   (instance? Events x))
+
+(defn closed?
+  "Returns true if the supplied stream is closed. Closed streams cannot be
+  pushed to."
+  [stream]
+  (and (events? stream) (.-closed stream)))
 
 (defn push!
   "Push one or more messages onto the stream."
@@ -156,7 +161,7 @@
   (let [ch (chan)]
     (doseq [s streams]
       (sub s ch))
-    (events ch true #(close! ch) streams)))
+    (events ch #(close! ch) streams)))
 
 (def ^:private no-value (js/Object.))
 
@@ -186,7 +191,7 @@
   of all input streams."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (zip-ch chs) true #(close-all! chs) streams)))
+    (events (zip-ch chs) #(close-all! chs) streams)))
 
 (defn- mapcat-ch [f in]
   (let [out (chan)]
@@ -202,7 +207,7 @@
   "Mapcat a function over a stream."
   ([f stream]
      (let [ch (tap stream)]
-       (events (mapcat-ch f ch) true #(close! ch) stream)))
+       (events (mapcat-ch f ch) #(close! ch) stream)))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -245,7 +250,7 @@
      (reduce f no-value stream))
   ([f init stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f ch init) true #(close! ch) stream))))
+       (events (reduce-ch f ch init) #(close! ch) stream))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
@@ -277,7 +282,7 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (let [ch (tap stream)]
-    (events (uniq-ch ch) true #(close! ch) stream)))
+    (events (uniq-ch ch) #(close! ch) stream)))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -302,7 +307,7 @@
   The timeout is specified in milliseconds."
   [timeout-ms stream]
   (let [ch (tap stream)]
-    (events (throttle-ch timeout-ms ch) true #(close! ch) stream)))
+    (events (throttle-ch timeout-ms ch) #(close! ch) stream)))
 
 (defn- run-sampler
   [ch ref interval stop?]
@@ -319,7 +324,7 @@
   (let [ch    (chan)
         stop? (atom false)]
     (run-sampler ch reference interval-ms stop?)
-    (events ch true #(reset! stop? true))))
+    (events ch #(reset! stop? true))))
 
 (defn- delay-ch [delay-ms ch]
   (let [out (chan)]
@@ -335,4 +340,4 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (let [ch (tap stream)]
-    (events (delay-ch delay-ms ch) true #(close! ch) stream)))
+    (events (delay-ch delay-ms ch) #(close! ch) stream)))

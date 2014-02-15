@@ -52,6 +52,7 @@
   (testing "from channel"
     (let [ch (chan)
           e  (r/events ch)]
+      (is (r/closed? e))
       (is (thrown? UnsupportedOperationException (e 1)))
       (>!! ch :foo)
       (is (realized? e))
