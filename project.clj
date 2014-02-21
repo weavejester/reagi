@@ -7,7 +7,6 @@
                  [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
                  [org.clojure/clojurescript "0.0-2156"]]
   :plugins [[codox "0.6.6"]
-            [com.cemerick/austin "0.1.3"]
             [lein-cljsbuild "1.0.2"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
@@ -15,7 +14,8 @@
   {:builds [{:source-paths ["src/clojure" "src/cljs"]
              :compiler {:output-to "target/main.js"}}]}
   :profiles
-  {:dev  {:dependencies [[criterium "0.4.2"]]}
+  {:dev  {:plugins [[com.cemerick/austin "0.1.3"]]
+          :dependencies [[criterium "0.4.2"]]}
    :test {:plugins [[com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
           :cljsbuild
           {:builds ^:replace [{:source-paths ["src/clojure" "src/cljs" "test/cljs"]
