@@ -110,28 +110,22 @@
 
 (defn- no-op [])
 
-(defn- make-events [ch closed? clean-up deps]
-  (let [head (atom nil)
-        ob   (observable (track head ch))]
-    (Events. ch closed? clean-up ob head deps)))
-
 (defn events
   "Create an referential stream of events. The stream may be instantiated from
   an existing core.async channel, otherwise a new one will be created. Streams
-  instantiated from existing channels are considered closed, and cannot be
-  pushed to.
+  instantiated from existing channels are closed by default.
 
-  A clean-up function may optionally be specified, which is evaluated when the
-  stream object is disposed. A list of dependent streams may also be included,
-  in order to protect them against premature GC."
-  ([]
-     (make-events (chan) false no-op nil))
-  ([ch]
-     (events ch no-op))
-  ([ch clean-up]
-     (events ch clean-up nil))
-  ([ch clean-up deps]
-     (make-events ch true clean-up deps)))
+  A map of options may also be specified with the following keys:
+
+    :dispose - a function called when the stream is disposed
+    :closed? - true if the stream cannot be pushed to
+    :deps    - a collection of streams that should be protected from GC"
+  ([]   (events (chan) {:closed? false}))
+  ([ch] (events ch {}))
+  ([ch {:keys [dispose closed? deps] :or {dispose no-op, closed? true}}]
+     (let [head (atom nil)
+           ob   (observable (track head ch))]
+       (Events. ch closed? dispose ob head deps))))
 
 (defn events?
   "Return true if the object is a stream of events."
@@ -166,7 +160,7 @@
   (let [ch (chan)]
     (doseq [s streams]
       (sub s ch))
-    (events ch #(close! ch) streams)))
+    (events ch {:dispose #(close! ch), :deps streams})))
 
 (def ^:private no-value (js/Object.))
 
@@ -196,7 +190,7 @@
   of all input streams."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (zip-ch chs) #(close-all! chs) streams)))
+    (events (zip-ch chs) {:dispose #(close-all! chs), :deps streams})))
 
 (defn- mapcat-ch [f in]
   (let [out (chan)]
@@ -212,7 +206,7 @@
   "Mapcat a function over a stream."
   ([f stream]
      (let [ch (tap stream)]
-       (events (mapcat-ch f ch) #(close! ch) stream)))
+       (events (mapcat-ch f ch) {:dispose #(close! ch), :deps stream})))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -255,7 +249,7 @@
      (reduce f no-value stream))
   ([f init stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f ch init) #(close! ch) stream))))
+       (events (reduce-ch f ch init) {:dispose #(close! ch), :deps stream}))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
@@ -287,7 +281,7 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (let [ch (tap stream)]
-    (events (uniq-ch ch) #(close! ch) stream)))
+    (events (uniq-ch ch) {:dispose #(close! ch), :deps stream})))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -312,7 +306,7 @@
   The timeout is specified in milliseconds."
   [timeout-ms stream]
   (let [ch (tap stream)]
-    (events (throttle-ch timeout-ms ch) #(close! ch) stream)))
+    (events (throttle-ch timeout-ms ch) {:dispose #(close! ch), :deps stream})))
 
 (defn- run-sampler
   [ch ref interval stop?]
@@ -331,7 +325,7 @@
   (let [ch    (chan)
         stop? (atom false)]
     (run-sampler ch reference interval-ms stop?)
-    (events ch #(reset! stop? true))))
+    (events ch {:dispose #(reset! stop? true)})))
 
 (defn- delay-ch [delay-ms ch]
   (let [out (chan)]
@@ -347,4 +341,4 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (let [ch (tap stream)]
-    (events (delay-ch delay-ms ch) #(close! ch) stream)))
+    (events (delay-ch delay-ms ch) {:dispose #(close! ch), :deps stream})))
