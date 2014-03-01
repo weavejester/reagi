@@ -90,7 +90,7 @@
   (-deref [self]
     (if-let [hd @head]
       (unbox hd)
-      (throw (js/Error. "Cannot deref an unrealized event stream"))))
+      js/undefined))
   IFn
   (-invoke [stream msg]
     (if closed
@@ -319,7 +319,9 @@
   (go-loop []
     (<! (timeout interval))
     (when-not @stop?
-      (>! ch (box @ref))
+      (let [x @ref]
+        (if-not (undefined? x)
+          (>! ch (box x))))
       (recur))))
 
 (defn sample

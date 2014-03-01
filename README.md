@@ -86,7 +86,7 @@ The ClojureScript version of Reagi has two main differences from the
 Clojure version:
 
 1. Trying to deref an unrealized stream blocks the current thread in
-   Clojure, but raises an error in ClojureScript.
+   Clojure, but returned js/undefined in ClojureScript.
 
 2. Event streams that fall out of scope in Clojure are automatically
    cleaned up. In ClojureScript, the `reagi.core/dispose` function
