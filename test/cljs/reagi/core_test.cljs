@@ -40,10 +40,14 @@
         (is (= 2 @e))
         (done))))
 
+(deftest test-event-unrealized
+  (let [e (r/events)]
+    (is (not (realized? e)))
+    (is (undefined? @e))))
+
 (deftest ^:async test-event-realized
   (let [e (r/events)]
-    (go (is (not (realized? e)))
-        (e 1)
+    (go (e 1)
         (<! (timeout 20))
         (is (realized? e))
         (done))))
