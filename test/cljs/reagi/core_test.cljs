@@ -171,9 +171,9 @@
 (deftest ^:async test-reduce-init
   (let [s (r/events)
         e (r/reduce + 0 s)]
-    (go (is (realized? e))
-        (is (= @e 0))
-        (<! (push!! s 1))
+    (is (realized? e))
+    (is (= @e 0))
+    (go (<! (push!! s 1))
         (is (= @e 1))
         (<! (push!! s 2 3))
         (is (= @e 6))

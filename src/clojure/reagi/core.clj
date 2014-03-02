@@ -136,20 +136,28 @@
 
 (defn- no-op [])
 
+(def ^:private no-value (Object.))
+
+(defn- no-value? [x]
+  (identical? x no-value))
+
 (defn events
   "Create an referential stream of events. The stream may be instantiated from
-  an existing core.async channel, otherwise a new one will be created. Streams
-  instantiated from existing channels are closed by default.
+  an existing core.async channel, otherwise a new channel will be created.
+  Streams instantiated from existing channels are closed by default.
 
   A map of options may also be specified with the following keys:
 
+    :init    - an optional, initial value for the stream
     :dispose - a function called when the stream is disposed
-    :closed? - true if the stream cannot be pushed to
-    :deps    - a collection of streams that should be protected from GC"
+    :closed? - true if the stream cannot be pushed to, false if it can
+    :deps    - a set of dependant streams that should be protected from GC"
   ([]   (events (chan) {:closed? false}))
   ([ch] (events ch {}))
-  ([ch {:keys [dispose closed? deps] :or {dispose no-op, closed? true}}]
-     (let [head (atom nil)
+  ([ch {:keys [init dispose closed? deps]
+        :or   {dispose no-op, closed? true, init no-value}}]
+     (let [init (if (no-value? init) nil (box init))
+           head (atom init)
            ob   (observable (track head ch))]
        (Events. ch closed? dispose ob head deps))))
 
@@ -193,11 +201,6 @@
   stream."
   [stream]
   (doto stream deref))
-
-(def ^:private no-value (Object.))
-
-(defn- no-value? [x]
-  (identical? x no-value))
 
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
@@ -262,16 +265,16 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(defn- reduce-ch [f ch init]
+(defn- reduce-ch [f init ch]
   (let [out (chan)]
-    (go (let [init (if (no-value? init) (unbox (<! ch)) init)]
-          (>! out (box init))
-          (loop [acc init]
-            (if-let [msg (<! ch)]
-              (let [val (f acc (unbox msg))]
-                (>! out (box val))
-                (recur val))
-              (close! out)))))
+    (go-loop [acc init]
+      (if-let [msg (<! ch)]
+        (let [val (if (no-value? acc)
+                    (unbox msg)
+                    (f acc (unbox msg)))]
+          (>! out (box val))
+          (recur val))
+        (close! out)))
     out))
 
 (defn reduce
@@ -281,7 +284,8 @@
      (reduce f no-value stream))
   ([f init stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f ch init) {:dispose #(close! ch), :deps stream}))))
+       (events (reduce-ch f init ch)
+               {:init init, :dispose #(close! ch), :deps stream}))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
