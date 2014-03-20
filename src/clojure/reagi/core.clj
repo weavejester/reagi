@@ -142,7 +142,7 @@
   (identical? x no-value))
 
 (defn events
-  "Create an referential stream of events. The stream may be instantiated from
+  "Create a referential stream of events. The stream may be instantiated from
   an existing core.async channel, otherwise a new channel will be created.
   Streams instantiated from existing channels are closed by default.
 
