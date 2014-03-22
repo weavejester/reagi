@@ -170,6 +170,32 @@
           e (r/map inc (r/reduce + 0 s))]
       (is (= (deref e 1000 :error) 1)))))
 
+(deftest test-buffer
+  (testing "unlimited buffer"
+    (let [s (r/events)
+          b (r/buffer s)]
+      (is (empty? @b))
+      (push!! s 1)
+      (is (= @b [1]))
+      (push!! s 2 3 4 5)
+      (is (= @b [1 2 3 4 5]))))
+  (testing "limited buffer"
+    (let [s (r/events)
+          b (r/buffer 3 s)]
+      (is (empty? @b))
+      (push!! s 1)
+      (is (= @b [1]))
+      (push!! s 2 3 4 5)
+      (is (= @b [3 4 5]))))
+  (testing "smallest buffer"
+    (let [s (r/events)
+          b (r/buffer 1 s)]
+      (push!! s 2 3 4 5)
+      (is (= @b [5]))))
+  (testing "preconditions"
+    (is (thrown? AssertionError (r/buffer 0 (r/events))))
+    (is (thrown? AssertionError (r/buffer 1.0 (r/events))))))
+
 (deftest test-uniq
   (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]

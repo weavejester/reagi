@@ -302,6 +302,21 @@
   [init stream]
   (reduce #(%2 %1) init stream))
 
+(def ^:private empty-queue
+  clojure.lang.PersistentQueue/EMPTY)
+
+(defn buffer
+  "Buffer all the events in the stream. A maximum buffer size may be specified,
+  in which case the buffer will contain only the last n items. It's recommended
+  that a buffer size is specified, otherwise the buffer will grow without limit."
+  ([stream]
+     (reduce conj empty-queue stream))
+  ([n stream]
+     {:pre [(integer? n) (pos? n)]}
+     (reduce (fn [q x] (conj (if (>= (core/count q) n) (pop q) q) x))
+             empty-queue
+             stream)))
+
 (defn- uniq-ch [in]
   (let [out (chan)]
     (go-loop [prev no-value]

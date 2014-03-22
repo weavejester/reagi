@@ -190,6 +190,33 @@
         (is (= @e 1))
         (done))))
 
+(deftest ^:async test-buffer-unlimited
+  (let [s (r/events)
+        b (r/buffer s)]
+    (is (empty? @b))
+    (go (<! (push!! s 1))
+        (is (= @b [1]))
+        (<! (push!! s 2 3 4 5))
+        (is (= @b [1 2 3 4 5]))
+        (done))))
+
+(deftest ^:async test-buffer-limited
+  (let [s (r/events)
+        b (r/buffer 3 s)]
+    (is (empty? @b))
+    (go (<! (push!! s 1))
+        (is (= @b [1]))
+        (<! (push!! s 2 3 4 5))
+        (is (= @b [3 4 5]))
+        (done))))
+
+(deftest ^:async test-buffer-smallest
+  (let [s (r/events)
+        b (r/buffer 1 s)]
+    (go (<! (push!! s 2 3 4 5))
+        (is (= @b [5]))
+        (done))))
+
 (deftest ^:async test-uniq
   (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]
