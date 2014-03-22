@@ -17,7 +17,7 @@
   :profiles
   {:dev  {:plugins [[com.cemerick/austin "0.1.4"]]
           :dependencies [[criterium "0.4.2"]]}
-   :test {:plugins [[com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
+   :test {:plugins [[com.cemerick/clojurescript.test "0.3.0"]]
           :cljsbuild
           {:builds ^:replace [{:source-paths ["src/clojure" "src/cljs" "test/cljs"]
                                :compiler {:output-to "target/test.js"}}]
