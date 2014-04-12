@@ -1,7 +1,7 @@
 (ns reagi.core-test
   (:require [clojure.test :refer :all]
             [reagi.core :as r]
-            [clojure.core.async :refer (chan >!! <!!)]))
+            [clojure.core.async :refer (chan >!! <!! close!)]))
 
 (deftest test-behavior
   (let [a (atom 1)
@@ -74,11 +74,19 @@
     (is (= 4 @e))))
 
 (deftest test-sink!
-  (let [e  (r/events)
-        ch (chan 1)]
-    (r/sink! e ch)
-    (r/push! e :foo)
-    (is (= (<!! ch) :foo))))
+  (testing "values"
+    (let [e  (r/events)
+          ch (chan 1)]
+      (r/sink! e ch)
+      (r/push! e :foo)
+      (is (= (<!! ch) :foo))))
+  (testing "closing"
+    (let [in  (chan)
+          e   (r/events in)
+          out (chan)]
+      (r/sink! e out)
+      (close! in)
+      (is (nil? (<!! out))))))
 
 (deftest test-cons
   (let [e (r/events)
