@@ -1,7 +1,7 @@
 (ns reagi.core
   (:require [clojure.core :as core]
-            [clojure.core.async :refer (alts! alts!! chan close! go go-loop timeout
-                                        <! >! <!! >!! map>)])
+            [clojure.core.async :as a :refer (alts! alts!! chan close! go go-loop
+                                              timeout <! >! <!! >!! map>)])
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
                             merge reduce cycle count delay cons time]))
 
@@ -68,16 +68,11 @@
     "Tell the stream to stop sending events the the supplied channel."))
 
 (defn- observable [channel]
-  (let [observers (atom #{})]
-    (go-loop []
-      (when-let [m (<! channel)]
-        (doseq [o @observers]
-          (>! o m))
-        (recur)))
+  (let [m (a/mult channel)]
     (reify
       Observable
-      (sub [_ ch]   (swap! observers conj ch))
-      (unsub [_ ch] (swap! observers disj ch)))))
+      (sub [_ ch]   (a/tap m ch))
+      (unsub [_ ch] (a/untap m ch)))))
 
 (defn- tap [stream]
   (let [ch (chan)]

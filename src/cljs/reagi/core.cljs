@@ -2,7 +2,7 @@
   (:require-macros [reagi.core :refer (behavior)]
                    [cljs.core.async.macros :refer (go go-loop)])
   (:require [cljs.core :as core]
-            [cljs.core.async :refer (alts! chan close! timeout <! >! map>)])
+            [cljs.core.async :as a :refer (alts! chan close! timeout <! >! map>)])
   (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
                             reduce count cycle delay]))
 
@@ -61,16 +61,11 @@
     "Tell the stream to stop sending events the the supplied channel."))
 
 (defn- observable [channel]
-  (let [observers (atom #{})]
-    (go-loop []
-      (when-let [m (<! channel)]
-        (doseq [o @observers]
-          (>! o m))
-        (recur)))
+  (let [m (a/mult channel)]
     (reify
       Observable
-      (sub [_ ch]   (swap! observers conj ch))
-      (unsub [_ ch] (swap! observers disj ch)))))
+      (sub [_ ch]   (a/tap m ch))
+      (unsub [_ ch] (a/untap m ch)))))
 
 (defn- tap [stream]
   (let [ch (chan)]
