@@ -60,13 +60,6 @@
   (unsub [stream channel]
     "Tell the stream to stop sending events the the supplied channel."))
 
-(defn- observable [channel]
-  (let [m (a/mult channel)]
-    (reify
-      Observable
-      (sub [_ ch]   (a/tap m ch))
-      (unsub [_ ch] (a/untap m ch)))))
-
 (defn- tap [stream]
   (let [ch (chan)]
     (sub stream ch)
@@ -78,7 +71,7 @@
 (defprotocol Disposable
   (dispose [x] "Clean up any resources an object has before it goes out of scope."))
 
-(deftype Events [ch closed clean-up ob head deps]
+(deftype Events [ch closed clean-up mult head deps]
   IPending
   (-realized? [_] (not (nil? @head)))
   IDeref
@@ -96,8 +89,8 @@
   (sub [_ c]
     (if-let [hd @head]
       (go (>! c hd)))
-    (sub ob c))
-  (unsub [_ c] (unsub ob c))
+    (a/tap mult c))
+  (unsub [_ c] (a/untap mult c))
   Dependencies
   (deps* [_] deps)
   Disposable
@@ -127,8 +120,8 @@
         :or   {dispose no-op, closed? true, init no-value}}]
      (let [init (if (no-value? init) nil (box init))
            head (atom init)
-           ob   (observable (track head ch))]
-       (Events. ch closed? dispose ob head deps))))
+           mult (a/mult (track head ch))]
+       (Events. ch closed? dispose mult head deps))))
 
 (defn events?
   "Return true if the object is a stream of events."

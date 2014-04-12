@@ -67,49 +67,43 @@
   (unsub [stream channel]
     "Tell the stream to stop sending events the the supplied channel."))
 
-(defn- observable [channel]
-  (let [m (a/mult channel)]
-    (reify
-      Observable
-      (sub [_ ch]   (a/tap m ch))
-      (unsub [_ ch] (a/untap m ch)))))
-
 (defn- tap [stream]
   (let [ch (chan)]
     (sub stream ch)
     ch))
 
-(defn- peek!! [ob time-ms]
-  (let [ch (tap ob)]
+(defn- peek!! [mult time-ms]
+  (let [ch (chan)]
+    (a/tap mult ch)
     (try
       (if time-ms
         (first (alts!! [ch (timeout time-ms)]))
         (<!! ch))
       (finally
-        (unsub ob ch)))))
+        (a/untap mult ch)))))
 
 (defprotocol ^:no-doc Dependencies
   (^:no-doc deps* [x]))
 
-(defn- deref-events [ob head ms timeout-val]
+(defn- deref-events [mult head ms timeout-val]
   (if-let [hd @head]
     (unbox hd)
-    (if-let [val (peek!! ob ms)]
+    (if-let [val (peek!! mult ms)]
       (unbox val)
       timeout-val)))
 
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype Events [ch closed clean-up ob head deps]
+(deftype Events [ch closed clean-up mult head deps]
   clojure.lang.IPending
   (isRealized [_] (not (nil? @head)))
   clojure.lang.IDeref
   (deref [self]
-    (deref-events ob head nil nil))
+    (deref-events mult head nil nil))
   clojure.lang.IBlockingDeref
   (deref [_ ms timeout-val]
-    (deref-events ob head ms timeout-val))
+    (deref-events mult head ms timeout-val))
   clojure.lang.IFn
   (invoke [stream msg]
     (if closed
@@ -120,8 +114,8 @@
   (sub [_ c]
     (if-let [hd @head]
       (go (>! c hd)))    
-    (sub ob c))
-  (unsub [_ c] (unsub ob c))
+    (a/tap mult c))
+  (unsub [_ c] (a/untap mult c))
   Dependencies
   (deps* [_] deps)
   Object
@@ -153,8 +147,8 @@
         :or   {dispose no-op, closed? true, init no-value}}]
      (let [init (if (no-value? init) nil (box init))
            head (atom init)
-           ob   (observable (track head ch))]
-       (Events. ch closed? dispose ob head deps))))
+           mult (a/mult (track head ch))]
+       (Events. ch closed? dispose mult head deps))))
 
 (defn events?
   "Return true if the object is a stream of events."
