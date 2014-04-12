@@ -43,14 +43,13 @@
   default
   (unbox [x] x))
 
-(defn- track [head ch]
-  (let [out (chan)]
+(defn- track! [mult head]
+  (let [ch (chan)]
+    (a/tap mult ch)
     (go-loop []
       (when-let [m (<! ch)]
         (reset! head m)
-        (>! out m)
-        (recur)))
-    out))
+        (recur)))))
 
 (defprotocol Observable
   (sub [stream channel]
@@ -120,7 +119,8 @@
         :or   {dispose no-op, closed? true, init no-value}}]
      (let [init (if (no-value? init) nil (box init))
            head (atom init)
-           mult (a/mult (track head ch))]
+           mult (a/mult ch)]
+       (track! mult head)
        (Events. ch closed? dispose mult head deps))))
 
 (defn events?
