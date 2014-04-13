@@ -119,16 +119,30 @@
       (is (= @m 2)))))
 
 (deftest test-zip
-  (let [e1 (r/events)
-        e2 (r/events)
-        z  (r/zip e1 e2)]
-    (push!! e1 1)
-    (push!! e2 2)
-    (is (= @z [1 2]))
-    (push!! e1 3)
-    (is (= @z [3 2]))
-    (push!! e2 4)
-    (is (= @z [3 4]))))
+  (testing "zipped streams"
+    (let [e1 (r/events)
+          e2 (r/events)
+          z  (r/zip e1 e2)]
+      (push!! e1 1)
+      (push!! e2 2)
+      (is (= @z [1 2]))
+      (push!! e1 3)
+      (is (= @z [3 2]))
+      (push!! e2 4)
+      (is (= @z [3 4]))))
+  (testing "closed channels"
+    (let [ch1 (chan)
+          ch2 (chan)
+          e1  (r/events ch1)
+          e2  (r/events ch2)
+          z   (r/zip e1 e2)]
+      (>!! ch1 1)
+      (>!! ch2 2)
+      (is (= @z [1 2]))
+      (close! ch1)
+      (>!! ch2 3)
+      (Thread/sleep 20)
+      (is (= @z [1 3])))))
 
 (deftest test-map
   (testing "Basic operation"

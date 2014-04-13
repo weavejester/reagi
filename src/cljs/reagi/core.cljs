@@ -163,14 +163,17 @@
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
         out   (chan)]
-    (go-loop [value (mapv (core/constantly no-value) ins)]
-      (let [[data in] (alts! ins)]
-        (if data
-          (let [value (assoc value (index in) (unbox data))]
-            (when-not (some no-value? value)
-              (>! out (box value)))
-            (recur value))
-          (close! out))))
+    (go-loop [value (mapv (core/constantly no-value) ins)
+              ins   (set ins)]
+      (if (seq ins)
+        (let [[data in] (alts! (vec ins))]
+          (if data
+            (let [value (assoc value (index in) (unbox data))]
+              (when-not (some no-value? value)
+                (>! out (box value)))
+              (recur value ins))
+            (recur value (disj ins in))))
+        (close! out)))
     out))
 
 (defn zip

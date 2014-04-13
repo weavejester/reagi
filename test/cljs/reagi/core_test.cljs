@@ -143,6 +143,22 @@
         (is (= @z [3 4]))
         (done))))
 
+(deftest ^:async test-zip-close
+  (let [ch1 (chan)
+        ch2 (chan)
+        e1  (r/events ch1)
+        e2  (r/events ch2)
+        z   (r/zip e1 e2)]
+    (go (>! ch1 1)
+        (>! ch2 2)
+        (<! (timeout 40))
+        (is (= @z [1 2]))
+        (close! ch1)
+        (>! ch2 3)
+        (<! (timeout 20))
+        (is (= @z [1 3]))
+        (done))))
+
 (deftest ^:async test-map-basic
   (let [s (r/events)
         e (r/map inc s)]
