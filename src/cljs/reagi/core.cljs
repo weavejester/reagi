@@ -149,14 +149,16 @@
   [stream channel]
   (sub stream (map> unbox channel)))
 
+(defn- close-all! [chs]
+  (doseq [ch chs]
+    (close! ch)))
+
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
   [& streams]
-  (let [ch (chan)]
-    (doseq [s streams]
-      (sub s ch))
-    (events ch {:dispose #(close! ch), :deps streams})))
+  (let [chs (mapv tap streams)]
+    (events (a/merge chs) {:dispose #(close-all! chs), :deps streams})))
 
 (defn- zip-ch [ins]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
@@ -170,10 +172,6 @@
             (recur value))
           (close! out))))
     out))
-
-(defn- close-all! [chs]
-  (doseq [ch chs]
-    (close! ch)))
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a

@@ -96,6 +96,28 @@
     (push!! e 10)
     (is (= @c 10))))
 
+(deftest test-merge
+  (testing "merged streams"
+    (let [e1 (r/events)
+          e2 (r/events)
+          m  (r/merge e1 e2)]
+      (push!! e1 1)
+      (is (= @m 1))
+      (push!! e2 2)
+      (is (= @m 2))))
+  (testing "closed channels"
+    (let [ch1 (chan)
+          ch2 (chan)
+          e1  (r/events ch1)
+          e2  (r/events ch2)
+          m   (r/merge e1 e2)]
+      (>!! ch1 1)
+      (is (= @m 1))
+      (close! ch1)
+      (>!! ch2 2)
+      (Thread/sleep 20)
+      (is (= @m 2)))))
+
 (deftest test-zip
   (let [e1 (r/events)
         e2 (r/events)

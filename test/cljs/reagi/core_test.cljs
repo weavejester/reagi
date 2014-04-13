@@ -105,6 +105,31 @@
         (is (= @c 10))
         (done))))
 
+(deftest ^:async test-merge
+  (let [e1 (r/events)
+        e2 (r/events)
+        m  (r/merge e1 e2)]
+    (go (<! (push!! e1 1))
+        (is (= @m 1))
+        (<! (push!! e2 2))
+        (is (= @m 2))
+        (done))))
+
+(deftest ^:async test-merge-close
+  (let [ch1 (chan)
+        ch2 (chan)
+        e1  (r/events ch1)
+        e2  (r/events ch2)
+        m   (r/merge e1 e2)]
+    (go (>! ch1 1)
+        (<! (timeout 20))
+        (is (= @m 1))
+        (close! ch1)
+        (>! ch2 2)
+        (<! (timeout 20))
+        (is (= @m 2))
+        (done))))
+
 (deftest ^:async test-zip
   (let [e1 (r/events)
         e2 (r/events)
