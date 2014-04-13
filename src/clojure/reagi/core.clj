@@ -350,21 +350,22 @@
     (events (throttle-ch timeout-ms ch) {:dispose #(close! ch), :deps stream})))
 
 (defn- run-sampler
-  [ch ref interval stop?]
+  [ch ref interval stop]
   (go-loop []
-    (<! (timeout interval))
-    (when-not @stop?
-      (>! ch (box @ref))
-      (recur))))
+    (let [[_ port] (alts! [stop (timeout interval)])]
+      (if (= port stop)
+        (close! ch)
+        (do (>! ch (box @ref))
+            (recur))))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
   The interval time is specified in milliseconds."
   [interval-ms reference]
-  (let [ch    (chan)
-        stop? (atom false)]
-    (run-sampler ch reference interval-ms stop?)
-    (events ch {:dispose #(reset! stop? true)})))
+  (let [ch   (chan)
+        stop (chan)]
+    (run-sampler ch reference interval-ms stop)
+    (events ch {:dispose #(close! stop)})))
 
 (defn- delay-ch [delay-ms ch]
   (let [out (chan)]
