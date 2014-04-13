@@ -5,9 +5,9 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
-                 [org.clojure/clojurescript "0.0-2173"]]
+                 [org.clojure/clojurescript "0.0-2202"]]
   :plugins [[codox "0.6.7"]
-            [lein-cljsbuild "1.0.2"]]
+            [lein-cljsbuild "1.0.3"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
   :jvm-opts ["-Xmx1g"]
