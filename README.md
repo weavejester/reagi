@@ -12,7 +12,7 @@ top of [core.async][2].
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.8.3"]
+    [reagi "0.8.4"]
 
 ## Overview
 
