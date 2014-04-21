@@ -46,7 +46,7 @@
     (let [e (r/events)]
       (is (not (realized? e)))
       (e 1)
-      (Thread/sleep 10)
+      (Thread/sleep 20)
       (is (realized? e))))
   (testing "deref"
     (let [e  (r/events)
@@ -70,7 +70,7 @@
 
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
-  (Thread/sleep (* 10 (count msgs))))
+  (Thread/sleep (* 20 (count msgs))))
 
 (deftest test-push!
   (let [e (r/events)]

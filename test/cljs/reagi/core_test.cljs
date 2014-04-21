@@ -75,7 +75,7 @@
 
 (defn- push!! [stream & msgs]
   (go (apply r/push! stream msgs)
-      (<! (timeout (* 10 (count msgs))))))
+      (<! (timeout (* 20 (count msgs))))))
 
 (deftest ^:async test-push!
   (let [e (r/events)]
