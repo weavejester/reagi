@@ -79,6 +79,27 @@
     (push!! e 2 3 4)
     (is (= 4 @e))))
 
+(deftest test-completed
+  (testing "events"
+    (let [e (r/events)]
+      (push!! e 1)
+      (is (= @e 1))
+      (push!! e (r/completed 2))
+      (is (= @e 2))
+      (is (r/complete? e))
+      (push!! e 3)
+      (is (= @e 2))))
+  (testing "derived events"
+    (let [e (r/events)
+          m (r/map inc e)]
+      (push!! e 1)
+      (is (= @m 2))
+      (push!! e (r/completed 2))
+      (is (= @m 3))
+      (is (r/complete? m))
+      (push!! e 3)
+      (is (= @m 3)))))
+
 (deftest test-sink!
   (testing "values"
     (let [e  (r/events)

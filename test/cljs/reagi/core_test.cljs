@@ -85,6 +85,29 @@
         (is (= 4 @e))
         (done))))
 
+(deftest ^:async test-completed-events
+  (let [e (r/events)]
+    (go (<! (push!! e 1))
+        (is (= @e 1))
+        (<! (push!! e (r/completed 2)))
+        (is (= @e 2))
+        (is (r/complete? e))
+        (<! (push!! e 3))
+        (is (= @e 2))
+        (done))))
+
+(deftest ^:async test-completed-derived
+  (let [e (r/events)
+        m (r/map inc e)]
+    (go (<! (push!! e 1))
+        (is (= @m 2))
+        (<! (push!! e (r/completed 2)))
+        (is (= @m 3))
+        (is (r/complete? m))
+        (<! (push!! e 3))
+        (is (= @m 3))
+        (done))))
+
 (deftest ^:async test-sink!
   (let [e  (r/events)
         ch (chan 1)]

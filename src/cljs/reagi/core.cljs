@@ -10,18 +10,46 @@
   (closed? [signal]
     "True if the signal accepts no adhoc input. Behaviors are always closed.
     Event streams derived from existing channels or other streams are also
-    closed."))
+    closed.")
+  (complete? [signal]
+    "True if the signal's value will no longer change."))
 
 (defn signal?
   "True if the object is a behavior or event stream."
   [x]
   (satisfies? Signal x))
 
+(defprotocol Boxed
+  (unbox [x] "Unbox a boxed value."))
+
+(deftype Completed [x]
+  Boxed
+  (unbox [_] x))
+
+(defn completed
+  "Wraps x to guarantee that it will be the last value in a behavior or event
+  stream. The value of x will be cached, and any values after x will be
+  ignored."
+  [x]
+  (Completed. x))
+
+(defn box
+  "Box a value to ensure it can be sent through a channel."
+  [x]
+  (if (instance? Completed x)
+    x
+    (reify Boxed (unbox [_] x))))
+
+(extend-protocol Boxed
+  default
+  (unbox [x] x))
+
 (deftype Behavior [func]
   IDeref
   (-deref [behavior] (func))
   Signal
-  (closed? [_] true))
+  (closed? [_] true)
+  (complete? [_] false))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
@@ -43,18 +71,6 @@
   []
   (let [t @time]
     (behavior (- @time t))))
-
-(defprotocol Boxed
-  (unbox [x] "Unbox a boxed value."))
-
-(defn box
-  "Box a value to ensure it can be sent through a channel."
-  [x]
-  (reify Boxed (unbox [_] x)))
-
-(extend-protocol Boxed
-  default
-  (unbox [x] x))
 
 (defn- track! [mult head]
   (let [ch (chan)]
@@ -83,7 +99,7 @@
 (defprotocol Disposable
   (dispose [x] "Clean up any resources an object has before it goes out of scope."))
 
-(deftype Events [ch closed clean-up mult head deps]
+(deftype Events [ch closed complete clean-up mult head deps]
   IPending
   (-realized? [_] (not (nil? @head)))
   IDeref
@@ -107,6 +123,7 @@
   (deps* [_] deps)
   Signal
   (closed? [_] closed)
+  (complete? [_] @complete)
   Disposable
   (dispose [_] (clean-up)))
 
@@ -116,6 +133,18 @@
 
 (defn- no-value? [x]
   (identical? x no-value))
+
+(defn- until-complete [in complete]
+  (let [out (chan)]
+    (go (loop []
+          (when-let [m (<! in)]
+            (>! out m)
+            (if (instance? Completed m)
+              (close! in)
+              (recur))))
+        (close! out)
+        (reset! complete true))
+    out))
 
 (defn events
   "Create an referential stream of events. The stream may be instantiated from
@@ -133,10 +162,11 @@
   ([ch {:keys [init dispose closed? deps]
         :or   {dispose no-op, closed? true, init no-value}}]
      (let [init (if (no-value? init) nil (box init))
-           head (atom init)
-           mult (a/mult ch)]
+           head     (atom init)
+           complete (atom false)
+           mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (Events. ch closed? dispose mult head deps))))
+       (Events. ch closed? complete dispose mult head deps))))
 
 (defn events?
   "Return true if the object is a stream of events."
