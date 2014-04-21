@@ -61,6 +61,7 @@
       (is (r/closed? e))
       (is (thrown? UnsupportedOperationException (e 1)))
       (>!! ch :foo)
+      (Thread/sleep 20)
       (is (realized? e))
       (is (= @e :foo)))))
 
