@@ -122,6 +122,19 @@
         (is (= @m 3))
         (done))))
 
+(deftest ^:async test-completed-channel
+  (let [c (chan)
+        e (r/events c)]
+    (go (>! c 1)
+        (<! (timeout 20))
+        (is (= @e 1))
+        (is (not (r/complete? e)))
+        (close! c)
+        (<! (timeout 20))
+        (is (= @e 1))
+        (is (r/complete? e))
+        (done))))
+
 (deftest ^:async test-sink!
   (let [e  (r/events)
         ch (chan 1)]

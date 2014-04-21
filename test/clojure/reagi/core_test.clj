@@ -111,7 +111,16 @@
       (is (= @m 3))
       (is (r/complete? m))
       (push!! e 3)
-      (is (= @m 3)))))
+      (is (= @m 3))))
+  (testing "channel events"
+    (let [c (chan)
+          e (r/events c)]
+      (>!! c 1)
+      (is (= @e 1))
+      (is (not (r/complete? e)))
+      (close! c)
+      (is (= @e 1))
+      (is (r/complete? e)))))
 
 (deftest test-sink!
   (testing "values"
