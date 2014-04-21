@@ -3,6 +3,12 @@
             [reagi.core :as r]
             [clojure.core.async :refer (chan >!! <!! close!)]))
 
+(deftest test-signal?
+  (is (r/signal? (r/behavior 1)))
+  (is (r/signal? (r/events)))
+  (is (not (r/signal? nil)))
+  (is (not (r/signal? "foo"))))
+
 (deftest test-behavior
   (let [a (atom 1)
         b (r/behavior (+ 1 @a))]

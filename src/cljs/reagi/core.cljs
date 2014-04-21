@@ -6,9 +6,22 @@
   (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
                             reduce count cycle delay]))
 
+(defprotocol Signal
+  (closed? [signal]
+    "True if the signal accepts no adhoc input. Behaviors are always closed.
+    Event streams derived from existing channels or other streams are also
+    closed."))
+
+(defn signal?
+  "True if the object is a behavior or event stream."
+  [x]
+  (satisfies? Signal x))
+
 (deftype Behavior [func]
   IDeref
-  (-deref [behavior] (func)))
+  (-deref [behavior] (func))
+  Signal
+  (closed? [_] true))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
@@ -92,6 +105,8 @@
   (unsub [_ c] (a/untap mult c))
   Dependencies
   (deps* [_] deps)
+  Signal
+  (closed? [_] closed)
   Disposable
   (dispose [_] (clean-up)))
 
@@ -127,12 +142,6 @@
   "Return true if the object is a stream of events."
   [x]
   (instance? Events x))
-
-(defn closed?
-  "Returns true if the supplied stream is closed. Closed streams cannot be
-  pushed to."
-  [stream]
-  (and (events? stream) (.-closed stream)))
 
 (defn push!
   "Push one or more messages onto the stream."
