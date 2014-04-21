@@ -44,18 +44,19 @@
   default
   (unbox [x] x))
 
-(deftype Behavior [func]
+(deftype Behavior [func cache]
   IDeref
-  (-deref [behavior] (func))
+  (-deref [behavior]
+    (unbox (swap! cache #(if (instance? Completed %) % (func)))))
   Signal
   (closed? [_] true)
-  (complete? [_] false))
+  (complete? [_] (instance? Completed @cache)))
 
 (defn behavior-call
   "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
   [func]
-  (Behavior. func))
+  (Behavior. func (atom nil)))
 
 (defn behavior?
   "Return true if the object is a behavior."

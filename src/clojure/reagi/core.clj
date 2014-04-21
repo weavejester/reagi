@@ -43,12 +43,13 @@
   Object (unbox [x] x)
   nil    (unbox [x] x))
 
-(deftype Behavior [func]
+(deftype Behavior [func cache]
   clojure.lang.IDeref
-  (deref [behavior] (func))
+  (deref [behavior]
+    (unbox (swap! cache #(if (instance? Completed %) % (func)))))
   Signal
   (closed? [_] true)
-  (complete? [_] false))
+  (complete? [_] (instance? Completed @cache)))
 
 (ns-unmap *ns* '->Behavior)
 
@@ -56,7 +57,7 @@
   "Takes a zero-argument function and yields a Behavior object that will
   evaluate the function each time it is dereferenced. See: behavior."
   [func]
-  (Behavior. func))
+  (Behavior. func (atom nil)))
 
 (defmacro behavior
   "Takes a body of expressions and yields a behavior object that will evaluate

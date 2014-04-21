@@ -80,6 +80,19 @@
     (is (= 4 @e))))
 
 (deftest test-completed
+  (testing "behaviors"
+    (let [a (atom nil)
+          b (r/behavior @a)]
+      (reset! a 1)
+      (is (not (r/complete? b)))
+      (is (= @b 1))
+      (reset! a (r/completed 2))
+      (is (= @b 2))
+      (is (r/complete? b))
+      (reset! a 3)
+      (is (= @b 2))
+      (reset! a (r/completed 4))
+      (is (= @b 2))))
   (testing "events"
     (let [e (r/events)]
       (push!! e 1)

@@ -85,6 +85,20 @@
         (is (= 4 @e))
         (done))))
 
+(deftest test-completed-behaviors
+  (let [a (atom nil)
+        b (r/behavior @a)]
+    (reset! a 1)
+    (is (not (r/complete? b)))
+    (is (= @b 1))
+    (reset! a (r/completed 2))
+    (is (= @b 2))
+    (is (r/complete? b))
+    (reset! a 3)
+    (is (= @b 2))
+    (reset! a (r/completed 4))
+    (is (= @b 2))))
+
 (deftest ^:async test-completed-events
   (let [e (r/events)]
     (go (<! (push!! e 1))
