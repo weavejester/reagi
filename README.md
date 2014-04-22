@@ -16,7 +16,8 @@ Add the following dependency to your `project.clj` file:
 
 ## Overview
 
-Reagi introduces two new reference types: behaviors and event streams.
+Reagi introduces two new reference types, behaviors and event streams,
+which are collectively known as signals.
 
 ```clojure
 user=> (require '[reagi.core :as r])
@@ -65,8 +66,10 @@ user=> @incremented
 3
 ```
 
-Finally, behaviors can be converted to event streams by sampling them
-at a specified interval:
+For a full list, see the [API docs](http://weavejester.github.io/reagi/reagi.core.html).
+
+Behaviors can be converted to event streams by sampling them at a
+specified interval in milliseconds:
 
 ```clojure
 user=> (def et (r/sample 1000 t))
@@ -74,6 +77,25 @@ user=> (def et (r/sample 1000 t))
 user=> @et
 1380475969885
 ```
+
+Signals can be completed with the `reagi.core/completed` function,
+which acts in a similar fashion to `clojure.core/reduced`. Signals
+that are completed will always deref to the same value. Any values
+pushed to a completed event stream will be ignored.
+
+```clojure
+user=> (def e (r/events))
+#'user/e
+user=> (r/push! e (r/completed 1))
+#<Events@66d278af: 1>
+user=> (r/push! e 2)
+#<Events@66d278af: 1>
+user=> @e
+1
+user=> (r/complete? e)
+true
+```
+
 
 ## Documentation
 
