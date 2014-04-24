@@ -396,3 +396,39 @@
         (<! (push!! s 2))
         (is (= @a 1))
         (done))))
+
+(deftest ^:async test-join
+  (let [e1 (r/events)
+        e2 (r/events)
+        j  (r/join e1 e2)]
+    (go (<! (push!! e1 1))
+        (is (= @j 1))
+        (<! (push!! e1 (r/completed 2)))
+        (is (= @j 2))
+        (<! (push!! e2 3))
+        (is (= @j 3))
+        (done))))
+
+(deftest ^:async test-join-blocking
+  (let [e1 (r/events)
+        e2 (r/events)
+        j  (r/join e1 e2)
+        s  (r/reduce + j)]
+    (go (<! (push!! e1 1))
+        (<! (push!! e2 3))
+        (is (= @j 1))
+        (is (= @s 1))
+        (<! (push!! e1 (r/completed 2)))
+        (is (= @j 3))
+        (is (= @s 6))
+        (done))))
+
+(deftest ^:async test-join-complete
+  (let [e1 (r/events)
+        e2 (r/events)
+        j  (r/join e1 e2)]
+    (go (<! (push!! e1 (r/completed 1)))
+        (<! (push!! e2 (r/completed 2)))
+        (is (= @j 2))
+        (is (r/complete? j))
+        (done))))

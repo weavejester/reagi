@@ -389,3 +389,35 @@
       (reset! a false)
       (Thread/sleep 120)
       (is (= @a true)))))
+
+(deftest test-join
+  (testing "basic sequence"
+    (let [e1 (r/events)
+          e2 (r/events)
+          j  (r/join e1 e2)]
+      (push!! e1 1)
+      (is (= @j 1))
+      (push!! e1 (r/completed 2))
+      (is (= @j 2))
+      (push!! e2 3)
+      (is (= @j 3))))
+  (testing "blocking"
+    (let [e1 (r/events)
+          e2 (r/events)
+          j  (r/join e1 e2)
+          s  (r/reduce + j)]
+      (push!! e1 1)
+      (push!! e2 3)
+      (is (= @j 1))
+      (is (= @s 1))
+      (push!! e1 (r/completed 2))
+      (is (= @j 3))
+      (is (= @s 6))))
+  (testing "complete"
+    (let [e1 (r/events)
+          e2 (r/events)
+          j  (r/join e1 e2)]
+      (push!! e1 (r/completed 1))
+      (push!! e2 (r/completed 2))
+      (is (= @j 2))
+      (is (r/complete? j)))))

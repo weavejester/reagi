@@ -422,3 +422,20 @@
   [delay-ms stream]
   (let [ch (tap stream)]
     (events (delay-ch delay-ms ch) {:dispose #(close! ch), :deps stream})))
+
+(defn- join-ch [chs]
+  (let [out (chan)]
+    (go (doseq [ch chs]
+          (loop []
+            (when-let [msg (<! ch)]
+              (>! out (box (unbox msg)))
+              (recur))))
+        (close! out))
+    out))
+
+(defn join
+  "Join several streams together. Events are delivered from the first stream
+  until it is completed, then the next stream, until all streams are complete."
+  [& streams]
+  (let [chs (mapv tap streams)]
+    (events (join-ch chs) {:dispose #(close-all! chs), :deps streams})))
