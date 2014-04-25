@@ -432,3 +432,33 @@
         (is (= @j 2))
         (is (r/complete? j))
         (done))))
+
+(deftest ^:async test-flatten
+  (let [es (r/events)
+        f  (r/flatten es)
+        e1 (r/events)
+        e2 (r/events)]
+    (go (<! (push!! es e1))
+        (<! (push!! e1 1))
+        (is (realized? f))
+        (is (= @f 1))
+        (<! (push!! es e2))
+        (<! (push!! e2 2))
+        (is (= @f 2))
+        (<! (push!! e1 3))
+        (is (= @f 3))
+        (done))))
+
+(deftest ^:async test-flatten-complete
+  (let [es (r/events)
+        f  (r/flatten es)
+        e  (r/events)]
+    (go (<! (push!! es (r/completed e)))
+        (<! (push!! e 1))
+        (is (r/complete? es))
+        (is (not (r/complete? e)))
+        (is (not (r/complete? f)))
+        (<! (push!! e (r/completed 2)))
+        (is (r/complete? e))
+        (is (r/complete? f))
+        (done))))

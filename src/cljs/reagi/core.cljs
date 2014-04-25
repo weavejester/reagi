@@ -4,7 +4,7 @@
   (:require [cljs.core :as core]
             [cljs.core.async :as a :refer (alts! chan close! timeout <! >! map>)])
   (:refer-clojure :exclude [merge cons zip mapcat map filter remove constantly
-                            reduce count cycle delay]))
+                            reduce count cycle delay flatten]))
 
 (defprotocol Signal
   (closed? [signal]
@@ -408,3 +408,27 @@
   [& streams]
   (let [chs (mapv tap streams)]
     (events (join-ch chs) {:dispose #(close-all! chs), :deps streams})))
+
+(defn- flatten-ch [in valve]
+  (let [out (chan)]
+    (go (loop [chs #{in}]
+          (if-not (empty? chs)
+            (let [[msg port] (alts! (conj (vec chs) valve))]
+              (if (identical? port valve)
+                (close-all! chs)
+                (if msg
+                  (if (identical? port in)
+                    (recur (conj chs (tap (unbox msg))))
+                    (do (>! out (box (unbox msg)))
+                        (recur chs)))
+                  (recur (disj chs port)))))))
+        (close! out))
+    out))
+
+(defn flatten
+  "Flatten a stream of streams into a stream that contains all the values of
+  its components."
+  [stream]
+  (let [valve (chan)
+        ch    (tap stream)]
+    (events (flatten-ch ch valve) {:dispose #(close! valve) :deps stream})))
