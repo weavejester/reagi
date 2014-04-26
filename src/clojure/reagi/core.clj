@@ -5,7 +5,7 @@
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
                             merge reduce cycle count delay cons time flatten]))
 
-(defprotocol Signal
+(defprotocol ^:no-doc Signal
   (closed? [signal]
     "True if the signal accepts no adhoc input. Behaviors are always closed.
     Event streams derived from existing channels or other streams are also
@@ -24,6 +24,8 @@
 (deftype Completed [x]
   Boxed
   (unbox [_] x))
+
+(ns-unmap *ns* '->Completed)
 
 (defn completed
   "Wraps x to guarantee that it will be the last value in a behavior or event
