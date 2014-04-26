@@ -10,7 +10,6 @@
             [lein-cljsbuild "1.0.3"]]
   :source-paths ["src/clojure" "src/cljs"]
   :test-paths ["test/clojure"]
-  :jvm-opts ["-Xmx1g"]
   :cljsbuild
   {:builds [{:source-paths ["src/clojure" "src/cljs"]
              :compiler {:output-to "target/main.js"}}]}
