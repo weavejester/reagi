@@ -61,8 +61,6 @@
 (deftest ^:async test-event-channel
   (let [ch (chan)
         e  (r/events ch)]
-    (is (r/closed? e))
-    (is (thrown? js/Error (e 1)))
     (go (>! ch :foo)
         (<! (timeout 20))
         (is (realized? e))

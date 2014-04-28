@@ -14,10 +14,6 @@
                    [cljs.core.async.macros :refer (go go-loop)]))
 
 (defprotocol ^:no-doc Signal
-  (closed? [signal]
-    "True if the signal accepts no adhoc input. Behaviors are always closed.
-    Event streams derived from existing channels or other streams are also
-    closed.")
   (complete? [signal]
     "True if the signal's value will no longer change."))
 
@@ -64,7 +60,6 @@
   (#+clj deref #+cljs -deref [behavior]
     (unbox (swap! cache #(if (instance? Completed %) % (func)))))
   Signal
-  (closed? [_] true)
   (complete? [_] (instance? Completed @cache)))
 
 #+clj (ns-unmap *ns* '->Behavior)
@@ -147,7 +142,7 @@
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype Events [ch closed complete clean-up mult head deps]
+(deftype Events [ch complete clean-up mult head deps]
   IPending
   #+clj (isRealized [_] (not (nil? @head)))
   #+cljs (-realized? [_] (not (nil? @head)))
@@ -163,16 +158,8 @@
   #+clj (deref [_ ms timeout-val] (deref-events mult head ms timeout-val))
   
   IFn
-  #+clj (invoke [stream msg]
-          (if closed
-            (throw (UnsupportedOperationException. "Cannot push to closed event stream"))
-            (do (>!! ch (box msg))
-                stream)))
-  #+cljs (-invoke [stream msg]
-           (if closed
-             (throw (js/Error. "Cannot push to closed event stream"))
-             (do (go (>! ch (box msg)))
-                 stream)))
+  #+clj (invoke [stream msg] (do (>!! ch (box msg)) stream))
+  #+cljs (-invoke [stream msg] (do (go (>! ch (box msg))) stream))
 
   Observable
   (sub [_ c]
@@ -185,7 +172,6 @@
   (deps* [_] deps)
   
   Signal
-  (closed? [_] closed)
   (complete? [_] @complete)
 
   #+clj Object
@@ -228,16 +214,16 @@
     :dispose - a function called when the stream is disposed
     :closed? - true if the stream cannot be pushed to, false if it can
     :deps    - a set of dependant streams that should be protected from GC"
-  ([]   (events (a/chan) {:closed? false}))
+  ([]   (events (a/chan)))
   ([ch] (events ch {}))
-  ([ch {:keys [init dispose closed? deps]
-        :or   {dispose no-op, closed? true, init no-value}}]
+  ([ch {:keys [init dispose deps]
+        :or   {dispose no-op, init no-value}}]
      (let [init     (if (no-value? init) nil (box init))
            head     (atom init)
            complete (atom false)
            mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (Events. ch closed? complete dispose mult head deps))))
+       (Events. ch complete dispose mult head deps))))
 
 (defn events?
   "Return true if the object is a stream of events."
