@@ -124,13 +124,14 @@
       (finally
         (a/untap mult ch)))))
 
+#+clj
 (def ^:private dependencies
   (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
 
 (defn- depend-on!
   "Protect a collection of child objects from being GCed before the parent."
   [parent children]
-  (.put dependencies parent children))
+  #+clj (.put dependencies parent children))
 
 #+clj
 (defn- deref-events [mult head ms timeout-val]
@@ -216,20 +217,17 @@
   A map of options may also be specified with the following keys:
 
     :init    - an optional, initial value for the stream
-    :dispose - a function called when the stream is disposed
-    :closed? - true if the stream cannot be pushed to, false if it can
-    :deps    - a set of dependant streams that should be protected from GC"
+    :dispose - a function called when the stream is disposed"
   ([]   (events (a/chan)))
   ([ch] (events ch {}))
-  ([ch {:keys [init dispose deps]
+  ([ch {:keys [init dispose]
         :or   {dispose no-op, init no-value}}]
      (let [init     (if (no-value? init) nil (box init))
            head     (atom init)
            complete (atom false)
            mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (doto (Events. ch complete dispose mult head)
-         (depend-on! deps)))))
+       (Events. ch complete dispose mult head))))
 
 (defn events?
   "Return true if the object is a stream of events."
@@ -260,7 +258,8 @@
   pushed to the returned stream."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (a/merge chs) {:dispose #(close-all! chs), :deps streams})))
+    (doto (events (a/merge chs) {:dispose #(close-all! chs)})
+      (depend-on! streams))))
 
 #+clj
 (defn ensure
@@ -291,7 +290,8 @@
   of all input streams."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (zip-ch chs) {:dispose #(close-all! chs), :deps streams})))
+    (doto (events (zip-ch chs) {:dispose #(close-all! chs)})
+      (depend-on! streams))))
 
 (defn- mapcat-ch [f in]
   (let [out (a/chan)]
@@ -307,7 +307,8 @@
   "Mapcat a function over a stream."
   ([f stream]
      (let [ch (tap stream)]
-       (events (mapcat-ch f ch) {:dispose #(a/close! ch), :deps stream})))
+       (doto (events (mapcat-ch f ch) {:dispose #(a/close! ch)})
+         (depend-on! [stream]))))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -350,8 +351,8 @@
      (reduce f no-value stream))
   ([f init stream]
      (let [ch (tap stream)]
-       (events (reduce-ch f init ch)
-               {:init init, :dispose #(a/close! ch), :deps stream}))))
+       (doto (events (reduce-ch f init ch) {:init init, :dispose #(a/close! ch)})
+         (depend-on! [stream])))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
@@ -399,7 +400,8 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (let [ch (tap stream)]
-    (events (uniq-ch ch) {:dispose #(a/close! ch), :deps stream})))
+    (doto (events (uniq-ch ch) {:dispose #(a/close! ch)})
+      (depend-on! [stream]))))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -428,7 +430,8 @@
   The timeout is specified in milliseconds."
   [timeout-ms stream]
   (let [ch (tap stream)]
-    (events (throttle-ch timeout-ms ch) {:dispose #(a/close! ch), :deps stream})))
+    (doto (events (throttle-ch timeout-ms ch) {:dispose #(a/close! ch)})
+      (depend-on! [stream]))))
 
 (defn- run-sampler
   [ch ref interval stop]
@@ -466,7 +469,8 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (let [ch (tap stream)]
-    (events (delay-ch delay-ms ch) {:dispose #(a/close! ch), :deps stream})))
+    (doto (events (delay-ch delay-ms ch) {:dispose #(a/close! ch)})
+      (depend-on! [stream]))))
 
 (defn- join-ch [chs]
   (let [out (a/chan)]
@@ -483,7 +487,8 @@
   until it is completed, then the next stream, until all streams are complete."
   [& streams]
   (let [chs (mapv tap streams)]
-    (events (join-ch chs) {:dispose #(close-all! chs), :deps streams})))
+    (doto (events (join-ch chs) {:dispose #(close-all! chs)})
+      (depend-on! streams))))
 
 (defn- flatten-ch [in valve]
   (let [out (a/chan)]
@@ -507,4 +512,5 @@
   [stream]
   (let [valve (a/chan)
         ch    (tap stream)]
-    (events (flatten-ch ch valve) {:dispose #(a/close! valve) :deps stream})))
+    (doto (events (flatten-ch ch valve) {:dispose #(a/close! valve)})
+      (depend-on! [stream]))))
