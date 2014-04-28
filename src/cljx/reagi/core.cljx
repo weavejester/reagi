@@ -141,6 +141,12 @@
       timeout-val)))
 
 #+cljs
+(defn- deref-events [head]
+  (if-let [hd @head]
+    (unbox hd)
+    js/undefined))
+
+#+cljs
 (defprotocol Disposable
   (dispose [x] "Clean up any resources an object has before it goes out of scope."))
 
@@ -154,10 +160,7 @@
 
   IDeref
   #+clj (deref [self] (deref-events mult head nil nil))
-  #+cljs (-deref [self]
-           (if-let [hd @head]
-             (unbox hd)
-             js/undefined))
+  #+cljs (-deref [self] (deref-events head))
   
   #+clj clojure.lang.IBlockingDeref
   #+clj (deref [_ ms timeout-val] (deref-events mult head ms timeout-val))
