@@ -124,8 +124,13 @@
       (finally
         (a/untap mult ch)))))
 
-(defprotocol ^:no-doc Dependencies
-  (^:no-doc deps* [x]))
+(def ^:private dependencies
+  (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
+
+(defn- depend-on!
+  "Protect a collection of child objects from being GCed before the parent."
+  [parent children]
+  (.put dependencies parent children))
 
 #+clj
 (defn- deref-events [mult head ms timeout-val]
@@ -142,7 +147,7 @@
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype Events [ch complete clean-up mult head deps]
+(deftype Events [ch complete clean-up mult head]
   IPending
   #+clj (isRealized [_] (not (nil? @head)))
   #+cljs (-realized? [_] (not (nil? @head)))
@@ -168,9 +173,6 @@
     (a/tap mult c))
   (unsub [_ c] (a/untap mult c))
 
-  Dependencies
-  (deps* [_] deps)
-  
   Signal
   (complete? [_] @complete)
 
@@ -223,7 +225,8 @@
            complete (atom false)
            mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (Events. ch complete dispose mult head deps))))
+       (doto (Events. ch complete dispose mult head)
+         (depend-on! deps)))))
 
 (defn events?
   "Return true if the object is a stream of events."
