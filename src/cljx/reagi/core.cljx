@@ -2,6 +2,8 @@
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
                             merge reduce cycle count delay cons time flatten])
   #+clj
+  (:import [clojure.lang IDeref IFn IPending])
+  #+clj
   (:require [clojure.core :as core]
             [clojure.core.async :as a :refer [go go-loop <! >! <!! >!!]])
   #+cljs
@@ -58,13 +60,9 @@
   (unbox [x] x))
 
 (deftype Behavior [func cache]
-  #+clj clojure.lang.IDeref
-  #+clj (deref [behavior]
-          (unbox (swap! cache #(if (instance? Completed %) % (func)))))
-
-  #+cljs IDeref
-  #+cljs (-deref [behavior]
-           (unbox (swap! cache #(if (instance? Completed %) % (func)))))
+  IDeref
+  (#+clj deref #+cljs -deref [behavior]
+    (unbox (swap! cache #(if (instance? Completed %) % (func)))))
   Signal
   (closed? [_] true)
   (complete? [_] (instance? Completed @cache)))
@@ -150,34 +148,26 @@
 ;; to be prematurely triggered. For this reason, we use a type.
 
 (deftype Events [ch closed complete clean-up mult head deps]
-  #+clj clojure.lang.IPending
+  IPending
   #+clj (isRealized [_] (not (nil? @head)))
-
-  #+cljs IPending
   #+cljs (-realized? [_] (not (nil? @head)))
 
-  #+clj clojure.lang.IDeref
-  #+clj (deref [self]
-          (deref-events mult head nil nil))
-
-  #+cljs IDeref
+  IDeref
+  #+clj (deref [self] (deref-events mult head nil nil))
   #+cljs (-deref [self]
            (if-let [hd @head]
              (unbox hd)
              js/undefined))
   
   #+clj clojure.lang.IBlockingDeref
-  #+clj (deref [_ ms timeout-val]
-          (deref-events mult head ms timeout-val))
+  #+clj (deref [_ ms timeout-val] (deref-events mult head ms timeout-val))
   
-  #+clj clojure.lang.IFn
+  IFn
   #+clj (invoke [stream msg]
           (if closed
             (throw (UnsupportedOperationException. "Cannot push to closed event stream"))
             (do (>!! ch (box msg))
                 stream)))
-
-  #+cljs IFn
   #+cljs (-invoke [stream msg]
            (if closed
              (throw (js/Error. "Cannot push to closed event stream"))
