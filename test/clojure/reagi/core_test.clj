@@ -58,6 +58,13 @@
       (let [t1 (System/currentTimeMillis)]
         (is (and (>= (- t1 t0) 100)
                  (<= (- t1 t0) 110))))))
+  (testing "initial value"
+    (let [e (r/events 1)]
+      (is (realized? e))
+      (is (= (deref! e) 1))
+      (e 2)
+      (Thread/sleep 20)
+      (is (= (deref! e) 2))))
   (testing "channel"
     (let [e (r/events)]
       (>!! (r/port e):foo)
@@ -103,6 +110,13 @@
       (is (r/complete? e))
       (push!! e 3)
       (is (= (deref! e) 2))))
+  (testing "initialized events"
+    (let [e (r/events (r/completed 1))]
+      (is (realized? e))
+      (is (= (deref! e) 1))
+      (is (r/complete? e))
+      (push!! e 2)
+      (is (= (deref! e) 1))))
   (testing "derived events"
     (let [e (r/events)
           m (r/map inc e)]

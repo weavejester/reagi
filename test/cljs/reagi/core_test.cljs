@@ -58,6 +58,15 @@
         (is (realized? e))
         (done))))
 
+(deftest ^:async test-event-initial
+  (let [e (r/events 1)]
+    (is (realized? e))
+    (is (= @e 1))
+    (go (e 2)
+        (<! (timeout 20))
+        (is (= @e 2))
+        (done))))
+
 (deftest ^:async test-event-channel
   (let [e (r/events)]
     (go (>! (r/port e) :foo)
@@ -106,6 +115,15 @@
         (<! (push!! e 3))
         (is (= @e 2))
         (done))))
+
+(deftest ^:async test-completed-initialized
+  (let [e (r/events (r/completed 1))]
+      (is (realized? e))
+      (is (= @e 1))
+      (is (r/complete? e))
+      (go (<! (push!! e 2))
+          (is (= @e 1))
+          (done))))
 
 (deftest ^:async test-completed-derived
   (let [e (r/events)

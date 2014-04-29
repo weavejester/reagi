@@ -143,7 +143,7 @@
   (on-dispose [x f]
     "Add a function to be called when the object is disposed."))
 
-(deftype Events [ch mult head complete disposers]
+(deftype Events [ch mult head closed disposers]
   IPending
   #+clj (isRealized [_] (not (nil? @head)))
   #+cljs (-realized? [_] (not (nil? @head)))
@@ -167,7 +167,7 @@
     channel)
 
   Signal
-  (complete? [_] @complete)
+  (complete? [_] (or @closed (instance? Completed @head)))
 
   Disposable
   (dispose [_] (doseq [d @disposers] (d)))
@@ -187,26 +187,6 @@
 (defn- no-value? [x]
   (identical? x no-value))
 
-(defn- track! [mult head]
-  (let [ch (a/chan)]
-    (a/tap mult ch)
-    (go-loop []
-      (when-let [m (<! ch)]
-        (reset! head m)
-        (recur)))))
-
-(defn- until-complete [in complete]
-  (let [out (a/chan)]
-    (go (loop []
-          (when-let [m (<! in)]
-            (>! out m)
-            (if (instance? Completed m)
-              (a/close! in)
-              (recur))))
-        (a/close! out)
-        (reset! complete true))
-    out))
-
 (defn events
   "Create a referential stream of events. An initial value may optionally be
   supplied, otherwise the stream will be unrealized until the first value is
@@ -214,12 +194,21 @@
   stream."
   ([] (events no-value))
   ([init]
-     (let [ch       (a/chan)
-           head     (atom (if (no-value? init) nil (box init)))
-           complete (atom false)
-           mult     (a/mult (until-complete ch complete))]
-       (track! mult head)
-       (Events. ch mult head complete (atom [])))))
+     (let [in     (a/chan)
+           closed (atom false)
+           head   (atom (if (no-value? init) nil (box init)))
+           out    (a/chan)
+           mult   (a/mult out)]
+       (go (loop [msg init]
+             (when (instance? Completed msg)
+               (a/close! in))
+             (when-let [msg (<! in)]
+               (>! out msg)
+               (reset! head msg)
+               (recur msg)))
+           (a/close! out)
+           (reset! closed true))
+       (Events. in mult head closed (atom [])))))
 
 (defn events?
   "Return true if the object is a stream of events."
