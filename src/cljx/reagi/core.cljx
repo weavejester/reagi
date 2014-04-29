@@ -101,17 +101,13 @@
         (recur)))))
 
 (defprotocol ^:no-doc Observable
-  (sub [stream channel]
-    "Tell the stream to send events to an existing core.async channel. The
-    events sent to the channel are boxed. To send the events unboxed, use the
-    sink! function.")
-  (unsub [stream channel]
-    "Tell the stream to stop sending events the the supplied channel."))
-
-(defn- tap [stream]
-  (let [ch (a/chan)]
-    (sub stream ch)
-    ch))
+  (port [ob]
+    "Return a write-only core.async channel. Any elements send to the port will
+    be distributed to the listener channels in parallel. Each listener must
+    accept before the next item is distributed.")
+  (listen [ob ch]
+    "Add a listener channel to the observable. The channel will be closed
+    when the port of the observable is closed. Returns the channel."))
 
 #+clj
 (defn- peek!! [mult time-ms]
@@ -154,7 +150,7 @@
 ;; reify creates an object twice, leading to the finalize method
 ;; to be prematurely triggered. For this reason, we use a type.
 
-(deftype Events [ch complete clean-up mult head]
+(deftype Events [ch mult head complete clean-up]
   IPending
   #+clj (isRealized [_] (not (nil? @head)))
   #+cljs (-realized? [_] (not (nil? @head)))
@@ -171,11 +167,11 @@
   #+cljs (-invoke [stream msg] (do (go (>! ch (box msg))) stream))
 
   Observable
-  (sub [_ c]
-    (if-let [hd @head]
-      (go (>! c hd)))    
-    (a/tap mult c))
-  (unsub [_ c] (a/untap mult c))
+  (port [_] ch)
+  (listen [_ channel]
+    (go (if-let [hd @head] (>! channel hd))
+        (a/tap mult channel))
+    channel)
 
   Signal
   (complete? [_] @complete)
@@ -210,24 +206,20 @@
     out))
 
 (defn events
-  "Create a referential stream of events. The stream may be instantiated from
-  an existing core.async channel, otherwise a new channel will be created.
-  Streams instantiated from existing channels are closed by default.
-
-  A map of options may also be specified with the following keys:
-
-    :init    - an optional, initial value for the stream
-    :dispose - a function called when the stream is disposed"
-  ([]   (events (a/chan)))
-  ([ch] (events ch {}))
-  ([ch {:keys [init dispose]
-        :or   {dispose no-op, init no-value}}]
-     (let [init     (if (no-value? init) nil (box init))
+  "Create a referential stream of events. An initial value may optionally be
+  supplied, otherwise the stream will be unrealized until the first value is
+  pushed to it. Event streams will deref to the latest value pushed to the
+  stream."
+  ([] (events {}))
+  ([{:keys [init dispose]
+     :or   {dispose no-op, init no-value}}]
+     (let [ch       (a/chan)
+           init     (if (no-value? init) nil (box init))
            head     (atom init)
            complete (atom false)
            mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (Events. ch complete dispose mult head))))
+       (Events. ch mult head complete dispose))))
 
 (defn events?
   "Return true if the object is a stream of events."
@@ -247,19 +239,26 @@
   "Deliver events on an event stream to a core.async channel. The events cannot
   include a nil value."
   [stream channel]
-  (sub stream (a/map> unbox channel)))
+  (listen stream (a/map> unbox channel)))
 
 (defn- close-all! [chs]
   (doseq [ch chs]
     (a/close! ch)))
 
+(defn- listen-all [streams]
+  (mapv #(listen % (a/chan)) streams))
+
+(defn- connect-port [stream f & args]
+  (apply f (concat args [(port stream)])))
+
 (defn merge
   "Combine multiple streams into one. All events from the input streams are
   pushed to the returned stream."
   [& streams]
-  (let [chs (mapv tap streams)]
-    (doto (events (a/merge chs) {:dispose #(close-all! chs)})
-      (depend-on! streams))))
+  (let [chs (listen-all streams)]
+    (doto (events {:dispose #(close-all! chs)})
+      (depend-on! streams)
+      (connect-port a/pipe (a/merge chs)))))
 
 #+clj
 (defn ensure
@@ -268,9 +267,8 @@
   [stream]
   (doto stream deref))
 
-(defn- zip-ch [ins]
-  (let [index (into {} (map-indexed (fn [i x] [x i]) ins))
-        out   (a/chan)]
+(defn- zip-ch [ins out]
+  (let [index (into {} (map-indexed (fn [i x] [x i]) ins))]
     (go-loop [value (mapv (core/constantly no-value) ins)
               ins   (set ins)]
       (if (seq ins)
@@ -281,34 +279,33 @@
                 (>! out (box value)))
               (recur value ins))
             (recur value (disj ins in))))
-        (a/close! out)))
-    out))
+        (a/close! out)))))
 
 (defn zip
   "Combine multiple streams into one. On an event from any input stream, a
   vector will be pushed to the returned stream containing the latest events
   of all input streams."
   [& streams]
-  (let [chs (mapv tap streams)]
-    (doto (events (zip-ch chs) {:dispose #(close-all! chs)})
-      (depend-on! streams))))
+  (let [chs (listen-all streams)]
+    (doto (events {:dispose #(close-all! chs)})
+      (depend-on! streams)
+      (connect-port zip-ch chs))))
 
-(defn- mapcat-ch [f in]
-  (let [out (a/chan)]
-    (go-loop []
-      (if-let [msg (<! in)]
-        (let [xs (f (unbox msg))]
-          (doseq [x xs] (>! out (box x)))
+(defn- mapcat-ch [f in out]
+  (go-loop []
+    (if-let [msg (<! in)]
+      (let [xs (f (unbox msg))]
+        (doseq [x xs] (>! out (box x)))
           (recur))
-        (a/close! out)))
-    out))
+      (a/close! out))))
 
 (defn mapcat
   "Mapcat a function over a stream."
   ([f stream]
-     (let [ch (tap stream)]
-       (doto (events (mapcat-ch f ch) {:dispose #(a/close! ch)})
-         (depend-on! [stream]))))
+     (let [ch (listen stream (a/chan))]
+       (doto (events {:dispose #(a/close! ch)})
+         (depend-on! [stream])
+         (connect-port mapcat-ch f ch))))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -332,17 +329,15 @@
   [value stream]
   (map (core/constantly value) stream))
 
-(defn- reduce-ch [f init ch]
-  (let [out (a/chan)]
-    (go-loop [acc init]
-      (if-let [msg (<! ch)]
-        (let [val (if (no-value? acc)
-                    (unbox msg)
-                    (f acc (unbox msg)))]
-          (>! out (box val))
-          (recur val))
-        (a/close! out)))
-    out))
+(defn- reduce-ch [f init in out]
+  (go-loop [acc init]
+    (if-let [msg (<! in)]
+      (let [val (if (no-value? acc)
+                  (unbox msg)
+                  (f acc (unbox msg)))]
+        (>! out (box val))
+        (recur val))
+      (a/close! out))))
 
 (defn reduce
   "Create a new stream by applying a function to the previous return value and
@@ -350,9 +345,10 @@
   ([f stream]
      (reduce f no-value stream))
   ([f init stream]
-     (let [ch (tap stream)]
-       (doto (events (reduce-ch f init ch) {:init init, :dispose #(a/close! ch)})
-         (depend-on! [stream])))))
+     (let [ch (listen stream (a/chan))]
+       (doto (events {:init init, :dispose #(a/close! ch)})
+         (depend-on! [stream])
+         (connect-port reduce-ch f init ch)))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
@@ -385,23 +381,22 @@
              empty-queue
              stream)))
 
-(defn- uniq-ch [in]
-  (let [out (a/chan)]
-    (go-loop [prev no-value]
-      (if-let [msg (<! in)]
-        (let [val (unbox msg)]
-          (if (or (no-value? prev) (not= val prev))
-            (>! out (box val)))
-          (recur val))
-        (a/close! out)))
-    out))
+(defn- uniq-ch [in out]
+  (go-loop [prev no-value]
+    (if-let [msg (<! in)]
+      (let [val (unbox msg)]
+        (if (or (no-value? prev) (not= val prev))
+          (>! out (box val)))
+        (recur val))
+      (a/close! out))))
 
 (defn uniq
   "Remove any successive duplicates from the stream."
   [stream]
-  (let [ch (tap stream)]
-    (doto (events (uniq-ch ch) {:dispose #(a/close! ch)})
-      (depend-on! [stream]))))
+  (let [ch (listen stream (a/chan))]
+    (doto (events {:dispose #(a/close! ch)})
+      (depend-on! [stream])
+      (connect-port uniq-ch ch))))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -414,103 +409,98 @@
   #+clj (System/currentTimeMillis)
   #+cljs (.getTime (js/Date.)))
 
-(defn- throttle-ch [timeout-ms in]
-  (let [out (a/chan)]
-    (go-loop [t0 0]
-      (if-let [msg (<! in)]
-        (let [t1 (time-ms)]
-          (if (>= (- t1 t0) timeout-ms)
-            (>! out msg))
-          (recur t1))
-        (a/close! out)))
-    out))
+(defn- throttle-ch [timeout-ms in out]
+  (go-loop [t0 0]
+    (if-let [msg (<! in)]
+      (let [t1 (time-ms)]
+        (if (>= (- t1 t0) timeout-ms)
+          (>! out msg))
+        (recur t1))
+      (a/close! out))))
 
 (defn throttle
   "Remove any events in a stream that occur too soon after the prior event.
   The timeout is specified in milliseconds."
   [timeout-ms stream]
-  (let [ch (tap stream)]
-    (doto (events (throttle-ch timeout-ms ch) {:dispose #(a/close! ch)})
-      (depend-on! [stream]))))
+  (let [ch (listen stream (a/chan))]
+    (doto (events {:dispose #(a/close! ch)})
+      (depend-on! [stream])
+      (connect-port throttle-ch timeout-ms ch))))
 
 (defn- run-sampler
-  [ch ref interval stop]
+  [ref interval stop out]
   (go-loop []
     (let [[_ port] (a/alts! [stop (a/timeout interval)])]
       (if (= port stop)
-        (a/close! ch)
-        #+clj  (do (>! ch (box @ref))
+        (a/close! out)
+        #+clj  (do (>! out (box @ref))
                    (recur))
         #+cljs (let [x @ref]
                  (if-not (undefined? x)
-                   (>! ch (box x)))
+                   (>! out (box x)))
                  (recur))))))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
   The interval time is specified in milliseconds."
   [interval-ms reference]
-  (let [ch   (a/chan)
-        stop (a/chan)]
-    (run-sampler ch reference interval-ms stop)
-    (events ch {:dispose #(a/close! stop)})))
+  (let [stop (a/chan)]
+    (doto (events {:dispose #(a/close! stop)})
+      (connect-port run-sampler reference interval-ms stop))))
 
-(defn- delay-ch [delay-ms ch]
-  (let [out (a/chan)]
-    (go-loop []
-      (if-let [msg (<! ch)]
-        (do (<! (a/timeout delay-ms))
-            (>! out msg)
-            (recur))
-        (a/close! out)))
-    out))
+(defn- delay-ch [delay-ms ch out]
+  (go-loop []
+    (if-let [msg (<! ch)]
+      (do (<! (a/timeout delay-ms))
+          (>! out msg)
+          (recur))
+      (a/close! out))))
 
 (defn delay
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
-  (let [ch (tap stream)]
-    (doto (events (delay-ch delay-ms ch) {:dispose #(a/close! ch)})
-      (depend-on! [stream]))))
+  (let [ch (listen stream (a/chan))]
+    (doto (events {:dispose #(a/close! ch)})
+      (depend-on! [stream])
+      (connect-port delay-ch delay-ms ch))))
 
-(defn- join-ch [chs]
-  (let [out (a/chan)]
-    (go (doseq [ch chs]
-          (loop []
-            (when-let [msg (<! ch)]
-              (>! out (box (unbox msg)))
-              (recur))))
-        (a/close! out))
-    out))
+(defn- join-ch [chs out]
+  (go (doseq [ch chs]
+        (loop []
+          (when-let [msg (<! ch)]
+            (>! out (box (unbox msg)))
+            (recur))))
+      (a/close! out)))
 
 (defn join
   "Join several streams together. Events are delivered from the first stream
   until it is completed, then the next stream, until all streams are complete."
   [& streams]
-  (let [chs (mapv tap streams)]
-    (doto (events (join-ch chs) {:dispose #(close-all! chs)})
-      (depend-on! streams))))
+  (let [chs (listen-all streams)]
+    (doto (events {:dispose #(close-all! chs)})
+      (depend-on! streams)
+      (connect-port join-ch chs))))
 
-(defn- flatten-ch [in valve]
-  (let [out (a/chan)]
-    (go (loop [chs #{in}]
-          (if-not (empty? chs)
-            (let [[msg port] (a/alts! (conj (vec chs) valve))]
-              (if (identical? port valve)
-                (close-all! chs)
-                (if msg
-                  (if (identical? port in)
-                    (recur (conj chs (tap (unbox msg))))
-                    (do (>! out (box (unbox msg)))
-                        (recur chs)))
-                  (recur (disj chs port)))))))
-        (a/close! out))
-    out))
+(defn- flatten-ch [in valve out]
+  (go (loop [chs #{in}]
+        (if-not (empty? chs)
+          (let [[msg port] (a/alts! (conj (vec chs) valve))]
+            (if (identical? port valve)
+              (close-all! chs)
+              (if msg
+                (if (identical? port in)
+                  (recur (conj chs (listen (unbox msg) (a/chan))))
+                  (do (>! out (box (unbox msg)))
+                      (recur chs)))
+                (recur (disj chs port)))))))
+      (a/close! out)))
 
 (defn flatten
   "Flatten a stream of streams into a stream that contains all the values of
   its components."
   [stream]
-  (let [valve (a/chan)
-        ch    (tap stream)]
-    (doto (events (flatten-ch ch valve) {:dispose #(a/close! valve)})
-      (depend-on! [stream]))))
+  (let [ch    (listen stream (a/chan))
+        valve (a/chan)]
+    (doto (events  {:dispose #(a/close! valve)})
+      (depend-on! [stream])
+      (connect-port flatten-ch ch valve))))

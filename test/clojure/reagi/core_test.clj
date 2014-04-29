@@ -58,10 +58,9 @@
       (let [t1 (System/currentTimeMillis)]
         (is (and (>= (- t1 t0) 100)
                  (<= (- t1 t0) 110))))))
-  (testing "from channel"
-    (let [ch (chan)
-          e  (r/events ch)]
-      (>!! ch :foo)
+  (testing "channel"
+    (let [e (r/events)]
+      (>!! (r/port e):foo)
       (Thread/sleep 20)
       (is (realized? e))
       (is (= (deref! e) :foo)))))
@@ -114,13 +113,12 @@
       (is (r/complete? m))
       (push!! e 3)
       (is (= (deref! m) 3))))
-  (testing "channel events"
-    (let [c (chan)
-          e (r/events c)]
-      (>!! c 1)
+  (testing "closed channel"
+    (let [e (r/events)]
+      (>!! (r/port e) 1)
       (is (= (deref! e) 1))
       (is (not (r/complete? e)))
-      (close! c)
+      (close! (r/port e))
       (is (= (deref! e) 1))
       (is (r/complete? e)))))
 
@@ -132,12 +130,12 @@
       (r/push! e :foo)
       (is (= (<!! ch) :foo))))
   (testing "closing"
-    (let [in  (chan)
-          e   (r/events in)
-          out (chan)]
-      (r/sink! e out)
-      (close! in)
-      (is (nil? (<!! out))))))
+    (let [e  (r/events)
+          ch (chan)]
+      (r/sink! e ch)
+      (Thread/sleep 40)
+      (close! (r/port e))
+      (is (nil? (<!! ch))))))
 
 (deftest test-cons
   (let [e (r/events)
@@ -157,15 +155,13 @@
       (push!! e2 2)
       (is (= (deref! m) 2))))
   (testing "closed channels"
-    (let [ch1 (chan)
-          ch2 (chan)
-          e1  (r/events ch1)
-          e2  (r/events ch2)
+    (let [e1  (r/events)
+          e2  (r/events)
           m   (r/merge e1 e2)]
-      (>!! ch1 1)
+      (>!! (r/port e1) 1)
       (is (= (deref! m) 1))
-      (close! ch1)
-      (>!! ch2 2)
+      (close! (r/port e1))
+      (>!! (r/port e2) 2)
       (Thread/sleep 20)
       (is (= (deref! m) 2)))))
 
@@ -182,16 +178,14 @@
       (push!! e2 4)
       (is (= (deref! z) [3 4]))))
   (testing "closed channels"
-    (let [ch1 (chan)
-          ch2 (chan)
-          e1  (r/events ch1)
-          e2  (r/events ch2)
+    (let [e1  (r/events)
+          e2  (r/events)
           z   (r/zip e1 e2)]
-      (>!! ch1 1)
-      (>!! ch2 2)
+      (>!! (r/port e1) 1)
+      (>!! (r/port e2) 2)
       (is (= (deref! z) [1 2]))
-      (close! ch1)
-      (>!! ch2 3)
+      (close! (r/port e1))
+      (>!! (r/port e2) 3)
       (Thread/sleep 20)
       (is (= (deref! z) [1 3])))))
 
