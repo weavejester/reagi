@@ -261,13 +261,6 @@
       (on-dispose #(close-all! chs))
       (depend-on streams))))
 
-#+clj
-(defn ensure
-  "Block until the first value of the stream becomes available, then return the
-  stream."
-  [stream]
-  (doto stream deref))
-
 (defn- zip-ch [ins out]
   (let [index (into {} (map-indexed (fn [i x] [x i]) ins))]
     (go-loop [value (mapv (core/constantly no-value) ins)
