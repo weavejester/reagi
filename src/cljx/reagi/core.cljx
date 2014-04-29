@@ -116,7 +116,7 @@
 (def ^:private dependencies
   (java.util.Collections/synchronizedMap (java.util.WeakHashMap.)))
 
-(defn- depend-on!
+(defn- depend-on
   "Protect a collection of child objects from being GCed before the parent."
   [parent children]
   #+clj (.put dependencies parent children))
@@ -135,14 +135,15 @@
     (unbox hd)
     js/undefined))
 
-#+cljs
 (defprotocol Disposable
-  (dispose [x] "Clean up any resources an object has before it goes out of scope."))
+  (dispose [x]
+    "Clean up any resources an object has before it goes out of scope. In
+    Clojure this is called automatically when the object is finalized. In
+    ClojureScript this must be called manually.")
+  (on-dispose [x f]
+    "Add a function to be called when the object is disposed."))
 
-;; reify creates an object twice, leading to the finalize method
-;; to be prematurely triggered. For this reason, we use a type.
-
-(deftype Events [ch mult head complete clean-up]
+(deftype Events [ch mult head complete disposers]
   IPending
   #+clj (isRealized [_] (not (nil? @head)))
   #+cljs (-realized? [_] (not (nil? @head)))
@@ -168,11 +169,12 @@
   Signal
   (complete? [_] @complete)
 
-  #+clj Object
-  #+clj (finalize [_] (clean-up))
+  Disposable
+  (dispose [_] (doseq [d @disposers] (d)))
+  (on-dispose [_ d] (swap! disposers conj d))
 
-  #+cljs Disposable
-  #+cljs (dispose [_] (clean-up)))
+  #+clj Object
+  #+clj (finalize [stream] (dispose stream)))
 
 #+clj (ns-unmap *ns* '->Events)
 
@@ -210,16 +212,14 @@
   supplied, otherwise the stream will be unrealized until the first value is
   pushed to it. Event streams will deref to the latest value pushed to the
   stream."
-  ([] (events {}))
-  ([{:keys [init dispose]
-     :or   {dispose no-op, init no-value}}]
+  ([] (events no-value))
+  ([init]
      (let [ch       (a/chan)
-           init     (if (no-value? init) nil (box init))
-           head     (atom init)
+           head     (atom (if (no-value? init) nil (box init)))
            complete (atom false)
            mult     (a/mult (until-complete ch complete))]
        (track! mult head)
-       (Events. ch mult head complete dispose))))
+       (Events. ch mult head complete (atom [])))))
 
 (defn events?
   "Return true if the object is a stream of events."
@@ -256,9 +256,10 @@
   pushed to the returned stream."
   [& streams]
   (let [chs (listen-all streams)]
-    (doto (events {:dispose #(close-all! chs)})
-      (depend-on! streams)
-      (connect-port a/pipe (a/merge chs)))))
+    (doto (events)
+      (connect-port a/pipe (a/merge chs))
+      (on-dispose #(close-all! chs))
+      (depend-on streams))))
 
 #+clj
 (defn ensure
@@ -287,9 +288,10 @@
   of all input streams."
   [& streams]
   (let [chs (listen-all streams)]
-    (doto (events {:dispose #(close-all! chs)})
-      (depend-on! streams)
-      (connect-port zip-ch chs))))
+    (doto (events)
+      (connect-port zip-ch chs)
+      (on-dispose #(close-all! chs))
+      (depend-on streams))))
 
 (defn- mapcat-ch [f in out]
   (go-loop []
@@ -303,9 +305,10 @@
   "Mapcat a function over a stream."
   ([f stream]
      (let [ch (listen stream (a/chan))]
-       (doto (events {:dispose #(a/close! ch)})
-         (depend-on! [stream])
-         (connect-port mapcat-ch f ch))))
+       (doto (events)
+         (connect-port mapcat-ch f ch)
+         (on-dispose #(a/close! ch))
+         (depend-on [stream]))))
   ([f stream & streams]
      (mapcat (partial apply f) (apply zip stream streams))))
 
@@ -346,9 +349,10 @@
      (reduce f no-value stream))
   ([f init stream]
      (let [ch (listen stream (a/chan))]
-       (doto (events {:init init, :dispose #(a/close! ch)})
-         (depend-on! [stream])
-         (connect-port reduce-ch f init ch)))))
+       (doto (events init)
+         (connect-port reduce-ch f init ch)
+         (on-dispose #(a/close! ch))
+         (depend-on [stream])))))
 
 (defn cons
   "Return a new event stream with an additional value added to the beginning."
@@ -394,9 +398,10 @@
   "Remove any successive duplicates from the stream."
   [stream]
   (let [ch (listen stream (a/chan))]
-    (doto (events {:dispose #(a/close! ch)})
-      (depend-on! [stream])
-      (connect-port uniq-ch ch))))
+    (doto (events)
+      (connect-port uniq-ch ch)
+      (on-dispose #(a/close! ch))
+      (depend-on [stream]))))
 
 (defn cycle
   "Incoming events cycle a sequence of values. Useful for switching between
@@ -423,9 +428,10 @@
   The timeout is specified in milliseconds."
   [timeout-ms stream]
   (let [ch (listen stream (a/chan))]
-    (doto (events {:dispose #(a/close! ch)})
-      (depend-on! [stream])
-      (connect-port throttle-ch timeout-ms ch))))
+    (doto (events)
+      (connect-port throttle-ch timeout-ms ch)
+      (on-dispose #(a/close! ch))
+      (depend-on [stream]))))
 
 (defn- run-sampler
   [ref interval stop out]
@@ -445,8 +451,9 @@
   The interval time is specified in milliseconds."
   [interval-ms reference]
   (let [stop (a/chan)]
-    (doto (events {:dispose #(a/close! stop)})
-      (connect-port run-sampler reference interval-ms stop))))
+    (doto (events)
+      (connect-port run-sampler reference interval-ms stop)
+      (on-dispose #(a/close! stop)))))
 
 (defn- delay-ch [delay-ms ch out]
   (go-loop []
@@ -460,9 +467,10 @@
   "Delay all events by the specified number of milliseconds."
   [delay-ms stream]
   (let [ch (listen stream (a/chan))]
-    (doto (events {:dispose #(a/close! ch)})
-      (depend-on! [stream])
-      (connect-port delay-ch delay-ms ch))))
+    (doto (events)
+      (connect-port delay-ch delay-ms ch)
+      (on-dispose #(a/close! ch))
+      (depend-on [stream]))))
 
 (defn- join-ch [chs out]
   (go (doseq [ch chs]
@@ -477,9 +485,10 @@
   until it is completed, then the next stream, until all streams are complete."
   [& streams]
   (let [chs (listen-all streams)]
-    (doto (events {:dispose #(close-all! chs)})
-      (depend-on! streams)
-      (connect-port join-ch chs))))
+    (doto (events)
+      (connect-port join-ch chs)
+      (on-dispose #(close-all! chs))
+      (depend-on streams))))
 
 (defn- flatten-ch [in valve out]
   (go (loop [chs #{in}]
@@ -501,6 +510,7 @@
   [stream]
   (let [ch    (listen stream (a/chan))
         valve (a/chan)]
-    (doto (events  {:dispose #(a/close! valve)})
-      (depend-on! [stream])
-      (connect-port flatten-ch ch valve))))
+    (doto (events)
+      (connect-port flatten-ch ch valve)
+      (on-dispose #(a/close! valve))
+      (depend-on [stream]))))
