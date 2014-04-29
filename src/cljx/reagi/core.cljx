@@ -92,14 +92,6 @@
   (let [t @time]
     (behavior (- @time t))))
 
-(defn- track! [mult head]
-  (let [ch (a/chan)]
-    (a/tap mult ch)
-    (go-loop []
-      (when-let [m (<! ch)]
-        (reset! head m)
-        (recur)))))
-
 (defprotocol ^:no-doc Observable
   (port [ob]
     "Return a write-only core.async channel. Any elements send to the port will
@@ -192,6 +184,14 @@
 
 (defn- no-value? [x]
   (identical? x no-value))
+
+(defn- track! [mult head]
+  (let [ch (a/chan)]
+    (a/tap mult ch)
+    (go-loop []
+      (when-let [m (<! ch)]
+        (reset! head m)
+        (recur)))))
 
 (defn- until-complete [in complete]
   (let [out (a/chan)]
