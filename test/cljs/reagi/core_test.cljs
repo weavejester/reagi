@@ -79,6 +79,12 @@
   (is (r/events? (r/events)))
   (is (not (r/events? "foo"))))
 
+(deftest test-once
+  (let [e (r/once :foo)]
+    (is (r/complete? e))
+    (is (realized? e))
+    (is (= @e :foo))))
+
 (defn- push!! [stream & msgs]
   (go (apply r/push! stream msgs)
       (<! (timeout (* 20 (count msgs))))))
@@ -441,6 +447,14 @@
         (<! (push!! e2 (r/completed 2)))
         (is (= @j 2))
         (is (r/complete? j))
+        (done))))
+
+(deftest ^:async test-join-once
+  (let [j (r/join (r/once 1) (r/once 2) (r/once 3))]
+    (go (<! (timeout 60))
+        (is (realized? j))
+        (is (r/complete? j))
+        (is (= @j 3))
         (done))))
 
 (deftest ^:async test-flatten

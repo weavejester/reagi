@@ -76,6 +76,12 @@
   (is (r/events? (r/events)))
   (is (not (r/events? "foo"))))
 
+(deftest test-once
+  (let [e (r/once :foo)]
+    (is (r/complete? e))
+    (is (realized? e))
+    (is (= (deref! e) :foo))))
+
 (defn- push!! [stream & msgs]
   (apply r/push! stream msgs)
   (Thread/sleep (* 20 (count msgs))))
@@ -429,7 +435,12 @@
       (push!! e1 (r/completed 1))
       (push!! e2 (r/completed 2))
       (is (= (deref! j) 2))
-      (is (r/complete? j)))))
+      (is (r/complete? j))))
+  (testing "once"
+    (let [j (r/join (r/once 1) (r/once 2) (r/once 3))]
+      (is (realized? j))
+      (is (r/complete? j))
+      (is (= (deref! j) 3)))))
 
 (deftest test-flatten
   (testing "basic operation"

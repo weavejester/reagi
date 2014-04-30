@@ -255,6 +255,11 @@
   [x]
   (instance? Events x))
 
+(defn once
+  "Create a completed event stream for a single value."
+  [value]
+  (events (completed value)))
+
 (defn push!
   "Push one or more messages onto the stream."
   ([stream])
