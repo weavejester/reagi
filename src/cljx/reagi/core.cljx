@@ -482,22 +482,14 @@
       (connect-port run-sampler reference interval-ms stop)
       (on-dispose #(a/close! stop)))))
 
-(defn- delay-ch [delay-ms ch out]
-  (go-loop []
-    (if-let [msg (<! ch)]
-      (do (<! (a/timeout delay-ms))
-          (>! out msg)
-          (recur))
-      (a/close! out))))
-
 (defn delay
-  "Delay all events by the specified number of milliseconds."
-  [delay-ms stream]
-  (let [ch (listen stream (a/chan))]
-    (doto (events)
-      (connect-port delay-ch delay-ms ch)
-      (on-dispose #(a/close! ch))
-      (depend-on [stream]))))
+  "Returns a channel that will complete unrealized after specified number of
+  milliseconds."
+  [delay-ms]
+  (let [stream (events)]
+    (go (<! (a/timeout delay-ms))
+        (a/close! (port stream)))
+    stream))
 
 (defn- join-ch [chs out]
   (go (doseq [ch chs]

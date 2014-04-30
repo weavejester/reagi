@@ -405,6 +405,14 @@
       (Thread/sleep 120)
       (is (= @a true)))))
 
+(deftest test-delay
+  (let [d (r/delay 100)]
+    (is (not (realized? d)))
+    (is (not (r/complete? d)))
+    (Thread/sleep 110)
+    (is (not (realized? d)))
+    (is (r/complete? d))))
+
 (deftest test-join
   (testing "basic sequence"
     (let [e1 (r/events)

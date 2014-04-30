@@ -413,6 +413,15 @@
         (is (= @a 1))
         (done))))
 
+(deftest ^:async test-delay
+  (let [d (r/delay 100)]
+    (go (is (not (realized? d)))
+        (is (not (r/complete? d)))
+        (<! (timeout 110))
+        (is (not (realized? d)))
+        (is (r/complete? d))
+        (done))))
+
 (deftest ^:async test-join
   (let [e1 (r/events)
         e2 (r/events)
