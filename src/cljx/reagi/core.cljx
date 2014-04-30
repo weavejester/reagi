@@ -101,6 +101,46 @@
     "Add a listener channel to the observable. The channel will be closed
     when the port of the observable is closed. Returns the channel."))
 
+(defn- mult*
+  "A version of clojure.core.async/mult that fixes ASYNC-64.
+  This can be removed once a fix is released for core.async."
+  [ch]
+  (let [state (atom [true {}])
+        m (reify
+            a/Mux
+            (muxch* [_] ch)
+            a/Mult
+            (tap* [_ ch close?]
+              (let [add-ch    (fn [[o? cs]] [o? (if o? (assoc cs ch close?) cs)])
+                    [open? _] (swap! state add-ch)]
+                (when-not open? (a/close! ch))
+                nil))
+            (untap* [_ ch]
+              (swap! state (fn [[open? cs]] [open? (dissoc cs ch)]))
+              nil)
+            (untap-all* [_]
+              (swap! state (fn [[open? _]] [open? {}]))))
+        dchan (a/chan 1)
+        dctr (atom nil)
+        done (fn [_] (when (zero? (swap! dctr dec))
+                      (a/put! dchan true)))]
+    (go-loop []
+      (let [val (<! ch)]
+        (if (nil? val)
+          (let [[_ cs] (swap! state (fn [[_ cs]] [false cs]))]
+            (doseq [[c close?] cs]
+              (when close? (a/close! c))))
+          (let [chs (keys (second @state))]
+            (reset! dctr (core/count chs))
+            (doseq [c chs]
+              (when-not (a/put! c val done)
+                (swap! dctr dec)
+                (a/untap* m c)))
+            (when (seq chs)
+              (<! dchan))
+            (recur)))))
+    m))
+
 #+clj
 (defn- peek!! [mult time-ms]
   (let [ch (a/chan)]
@@ -198,7 +238,7 @@
            closed (atom false)
            head   (atom (if (no-value? init) nil (box init)))
            out    (a/chan)
-           mult   (a/mult out)]
+           mult   (mult* out)]
        (go (loop [msg init]
              (when (instance? Completed msg)
                (a/close! in))
