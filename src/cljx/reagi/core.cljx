@@ -266,6 +266,7 @@
 
 (defn deliver
   "Deliver one or more messages to an event stream."
+  {:arglists '([stream & msgs])}
   ([stream])
   ([stream msg]
      (stream msg))
