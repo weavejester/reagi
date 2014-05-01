@@ -1,6 +1,6 @@
 (ns reagi.core
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
-                            merge reduce cycle count delay time flatten])
+                            merge reduce cycle count time flatten])
   #+clj
   (:import [clojure.lang IDeref IFn IPending])
   #+clj
@@ -475,12 +475,12 @@
       (connect-port run-sampler reference interval-ms stop)
       (on-dispose #(a/close! stop)))))
 
-(defn delay
+(defn wait
   "Returns a channel that will complete unrealized after specified number of
   milliseconds."
-  [delay-ms]
+  [time-ms]
   (let [stream (events)]
-    (go (<! (a/timeout delay-ms))
+    (go (<! (a/timeout time-ms))
         (a/close! (port stream)))
     stream))
 

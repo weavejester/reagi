@@ -409,13 +409,13 @@
       (Thread/sleep 120)
       (is (= @a true)))))
 
-(deftest test-delay
-  (let [d (r/delay 100)]
-    (is (not (realized? d)))
-    (is (not (r/complete? d)))
+(deftest test-wait
+  (let [w (r/wait 100)]
+    (is (not (realized? w)))
+    (is (not (r/complete? w)))
     (Thread/sleep 110)
-    (is (not (realized? d)))
-    (is (r/complete? d))))
+    (is (not (realized? w)))
+    (is (r/complete? w))))
 
 (deftest test-join
   (testing "basic sequence"
