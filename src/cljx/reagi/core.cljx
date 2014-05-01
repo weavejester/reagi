@@ -1,6 +1,6 @@
 (ns reagi.core
-  (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
-                            merge reduce cycle count time flatten deliver])
+  (:refer-clojure :exclude [constantly count cycle deliver filter flatten
+                            map mapcat merge reduce remove time])
   #+clj
   (:import [clojure.lang IDeref IFn IPending])
   #+clj
@@ -10,8 +10,8 @@
   (:require [cljs.core :as core]
             [cljs.core.async :as a :refer [<! >!]])
   #+cljs
-  (:require-macros [reagi.core :refer (behavior)]
-                   [cljs.core.async.macros :refer (go go-loop)]))
+  (:require-macros [reagi.core :refer [behavior]]
+                   [cljs.core.async.macros :refer [go go-loop]]))
 
 (defprotocol ^:no-doc Signal
   (complete? [signal]
