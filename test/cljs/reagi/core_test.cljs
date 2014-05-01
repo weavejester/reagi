@@ -402,6 +402,20 @@
         (is (= @s 1))
         (done))))
 
+(deftest ^:async test-sample-completed
+  (let [a (atom 0)
+        b (r/behavior @a)
+        s (r/sample 100 b)]
+    (go (<! (timeout 120))
+        (is (realized? s))
+        (is (not (r/complete? s)))
+        (is (= @s 0))
+        (reset! a (r/completed 1))
+        (<! (timeout 120))
+        (is (r/complete? s))
+        (is (= @s 1))
+        (done))))
+
 (deftest ^:async test-dispose
   (let [a (atom nil)
         s (r/events)

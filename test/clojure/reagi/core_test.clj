@@ -388,6 +388,18 @@
       (is (= (deref! s) 0))
       (Thread/sleep 120)
       (is (= (deref! s) 1))))
+  (testing "completed"
+    (let [a (atom 0)
+          b (r/behavior @a)
+          s (r/sample 100 b)]
+      (Thread/sleep 120)
+      (is (realized? s))
+      (is (not (r/complete? s)))
+      (is (= @s 0))
+      (reset! a (r/completed 1))
+      (Thread/sleep 120)
+      (is (r/complete? s))
+      (is (= @s 1))))
   (testing "thread ends if stream GCed"
     (let [a (atom false)]
       (r/sample 100 (r/behavior (reset! a true)))

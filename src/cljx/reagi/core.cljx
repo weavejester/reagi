@@ -191,10 +191,10 @@
   IDeref
   #+clj (deref [self] (deref-events mult head nil nil))
   #+cljs (-deref [self] (deref-events head))
-  
+
   #+clj clojure.lang.IBlockingDeref
   #+clj (deref [_ ms timeout-val] (deref-events mult head ms timeout-val))
-  
+
   IFn
   #+clj (invoke [stream msg] (do (>!! ch (box msg)) stream))
   #+cljs (-invoke [stream msg] (do (go (>! ch (box msg))) stream))
@@ -460,18 +460,16 @@
       (on-dispose #(a/close! ch))
       (depend-on [stream]))))
 
-(defn- run-sampler
-  [ref interval stop out]
-  (go-loop []
-    (let [[_ port] (a/alts! [stop (a/timeout interval)])]
-      (if (= port stop)
-        (a/close! out)
-        #+clj  (do (>! out (box @ref))
-                   (recur))
-        #+cljs (let [x @ref]
-                 (if-not (undefined? x)
-                   (>! out (box x)))
-                 (recur))))))
+(defn- run-sampler [ref interval stop out]
+  (go (loop []
+        (let [[_ port] (a/alts! [stop (a/timeout interval)])]
+          (when (not= port stop)
+            (let [val @ref]
+              #+clj  (>! out (box val))
+              #+cljs (when-not (undefined? val) (>! out (box val)))
+              (when-not (and (signal? ref) (complete? ref))
+                (recur))))))
+      (a/close! out)))
 
 (defn sample
   "Turn a reference into an event stream by deref-ing it at fixed intervals.
