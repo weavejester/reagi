@@ -179,7 +179,7 @@
     (unbox hd)
     js/undefined))
 
-(defprotocol Disposable
+(defprotocol ^:no-doc Disposable
   (dispose [x]
     "Clean up any resources an object has before it goes out of scope. In
     Clojure this is called automatically when the object is finalized. In
