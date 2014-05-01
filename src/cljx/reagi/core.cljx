@@ -1,4 +1,5 @@
 (ns reagi.core
+  "Functions and types for functional reactive programming."
   (:refer-clojure :exclude [constantly count cycle deliver filter flatten
                             map mapcat merge reduce remove time])
   #+clj
