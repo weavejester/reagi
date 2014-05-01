@@ -172,15 +172,6 @@
         (is (nil? (<! ch)))
         (done))))
 
-(deftest ^:async test-cons
-  (let [e (r/events)
-        c (r/cons 5 e)]
-    (go (is (realized? c))
-        (is (= @c 5))
-        (<! (push!! e 10))
-        (is (= @c 10))
-        (done))))
-
 (deftest ^:async test-merge
   (let [e1 (r/events)
         e2 (r/events)

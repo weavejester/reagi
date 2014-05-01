@@ -157,14 +157,6 @@
       (close! (r/port e))
       (is (nil? (<!! ch))))))
 
-(deftest test-cons
-  (let [e (r/events)
-        c (r/cons 5 e)]
-    (is (realized? c))
-    (is (= (deref! c) 5))
-    (push!! e 10)
-    (is (= (deref! c) 10))))
-
 (deftest test-merge
   (testing "merged streams"
     (let [e1 (r/events)

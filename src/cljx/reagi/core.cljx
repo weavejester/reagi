@@ -1,6 +1,6 @@
 (ns reagi.core
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
-                            merge reduce cycle count delay cons time flatten])
+                            merge reduce cycle count delay time flatten])
   #+clj
   (:import [clojure.lang IDeref IFn IPending])
   #+clj
@@ -266,7 +266,7 @@
   ([stream msg]
      (stream msg))
   ([stream msg & msgs]
-     (doseq [m (core/cons msg msgs)]
+     (doseq [m (cons msg msgs)]
        (stream m))))
 
 (defn sink!
@@ -380,11 +380,6 @@
          (connect-port reduce-ch f init ch)
          (on-dispose #(a/close! ch))
          (depend-on [stream])))))
-
-(defn cons
-  "Return a new event stream with an additional value added to the beginning."
-  [value stream]
-  (reduce (fn [_ x] x) value stream))
 
 (defn count
   "Return an accumulating count of the items in a stream."
