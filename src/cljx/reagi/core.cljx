@@ -1,6 +1,6 @@
 (ns reagi.core
   (:refer-clojure :exclude [constantly derive mapcat map filter remove ensure
-                            merge reduce cycle count time flatten])
+                            merge reduce cycle count time flatten deliver])
   #+clj
   (:import [clojure.lang IDeref IFn IPending])
   #+clj
@@ -260,8 +260,8 @@
   [value]
   (events (completed value)))
 
-(defn push!
-  "Push one or more messages onto the stream."
+(defn deliver
+  "Deliver one or more messages to an event stream."
   ([stream])
   ([stream msg]
      (stream msg))

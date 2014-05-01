@@ -85,15 +85,15 @@
     (is (realized? e))
     (is (= @e :foo))))
 
-(defn- push!! [stream & msgs]
-  (go (apply r/push! stream msgs)
+(defn- deliver! [stream & msgs]
+  (go (apply r/deliver stream msgs)
       (<! (timeout (* 20 (count msgs))))))
 
-(deftest ^:async test-push!
+(deftest ^:async test-deliver
   (let [e (r/events)]
-    (go (<! (push!! e 1))
+    (go (<! (deliver! e 1))
         (is (= 1 @e))
-        (<! (push!! e 2 3 4))
+        (<! (deliver! e 2 3 4))
         (is (= 4 @e))
         (done))))
 
@@ -113,12 +113,12 @@
 
 (deftest ^:async test-completed-events
   (let [e (r/events)]
-    (go (<! (push!! e 1))
+    (go (<! (deliver! e 1))
         (is (= @e 1))
-        (<! (push!! e (r/completed 2)))
+        (<! (deliver! e (r/completed 2)))
         (is (= @e 2))
         (is (r/complete? e))
-        (<! (push!! e 3))
+        (<! (deliver! e 3))
         (is (= @e 2))
         (done))))
 
@@ -127,19 +127,19 @@
       (is (realized? e))
       (is (= @e 1))
       (is (r/complete? e))
-      (go (<! (push!! e 2))
+      (go (<! (deliver! e 2))
           (is (= @e 1))
           (done))))
 
 (deftest ^:async test-completed-derived
   (let [e (r/events)
         m (r/map inc e)]
-    (go (<! (push!! e 1))
+    (go (<! (deliver! e 1))
         (is (= @m 2))
-        (<! (push!! e (r/completed 2)))
+        (<! (deliver! e (r/completed 2)))
         (is (= @m 3))
         (is (r/complete? m))
-        (<! (push!! e 3))
+        (<! (deliver! e 3))
         (is (= @m 3))
         (done))))
 
@@ -159,7 +159,7 @@
   (let [e  (r/events)
         ch (chan 1)]
     (r/sink! e ch)
-    (go (r/push! e :foo)
+    (go (r/deliver e :foo)
         (is (= (<! ch) :foo))
         (done))))
 
@@ -176,9 +176,9 @@
   (let [e1 (r/events)
         e2 (r/events)
         m  (r/merge e1 e2)]
-    (go (<! (push!! e1 1))
+    (go (<! (deliver! e1 1))
         (is (= @m 1))
-        (<! (push!! e2 2))
+        (<! (deliver! e2 2))
         (is (= @m 2))
         (done))))
 
@@ -199,12 +199,12 @@
   (let [e1 (r/events)
         e2 (r/events)
         z  (r/zip e1 e2)]
-    (go (<! (push!! e1 1))
-        (<! (push!! e2 2))
+    (go (<! (deliver! e1 1))
+        (<! (deliver! e2 2))
         (is (= @z [1 2]))
-        (<! (push!! e1 3))
+        (<! (deliver! e1 3))
         (is (= @z [3 2]))
-        (<! (push!! e2 4))
+        (<! (deliver! e2 4))
         (is (= @z [3 4]))
         (done))))
 
@@ -225,7 +225,7 @@
 (deftest ^:async test-map-basic
   (let [s (r/events)
         e (r/map inc s)]
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= 2 @e))
         (done))))
 
@@ -233,15 +233,15 @@
   (let [s1 (r/events)
         s2 (r/events)
         e  (r/map + s1 s2)]
-    (go (<! (push!! s1 4))
-        (<! (push!! s2 6))
+    (go (<! (deliver! s1 4))
+        (<! (deliver! s2 6))
         (is (= @e 10))
         (done))))
 
 (deftest ^:async test-mapcat-basic
   (let [s (r/events)
         e (r/mapcat (comp list inc) s)]
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= 2 @e))
         (done))))
 
@@ -249,26 +249,26 @@
   (let [s1 (r/events)
         s2 (r/events)
         e  (r/mapcat (comp list +) s1 s2)]
-    (go (<! (push!! s1 2))
-        (<! (push!! s2 3))
+    (go (<! (deliver! s1 2))
+        (<! (deliver! s2 3))
         (is (= @e 5))
         (done))))
 
 (deftest ^:async test-filter
   (let [s (r/events)
         e (r/filter even? s)]
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (not (realized? e)))
-        (<! (push!! s 2 3))
+        (<! (deliver! s 2 3))
         (is (= @e 2))
         (done))))
 
 (deftest ^:async test-remove
   (let [s (r/events)
         e (r/remove even? s)]
-    (go (<! (push!! s 0))
+    (go (<! (deliver! s 0))
         (is (not (realized? e)))
-        (<! (push!! s 1 2))
+        (<! (deliver! s 1 2))
         (is (= @e 1))
         (done))))
 
@@ -276,12 +276,12 @@
   (let [s (r/events)
         e (r/reduce + s)]
     (go (is (not (realized? e)))
-        (<! (push!! s 1))
+        (<! (deliver! s 1))
         (is (realized? e))
         (is (= @e 1))
-        (<! (push!! s 2))
+        (<! (deliver! s 2))
         (is (= @e 3))
-        (<! (push!! s 3 4))
+        (<! (deliver! s 3 4))
         (is (= @e 10))
         (done))))
 
@@ -290,9 +290,9 @@
         e (r/reduce + 0 s)]
     (is (realized? e))
     (is (= @e 0))
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= @e 1))
-        (<! (push!! s 2 3))
+        (<! (deliver! s 2 3))
         (is (= @e 6))
         (done))))
 
@@ -307,9 +307,9 @@
   (let [s (r/events)
         b (r/buffer s)]
     (is (empty? @b))
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= @b [1]))
-        (<! (push!! s 2 3 4 5))
+        (<! (deliver! s 2 3 4 5))
         (is (= @b [1 2 3 4 5]))
         (done))))
 
@@ -317,25 +317,25 @@
   (let [s (r/events)
         b (r/buffer 3 s)]
     (is (empty? @b))
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= @b [1]))
-        (<! (push!! s 2 3 4 5))
+        (<! (deliver! s 2 3 4 5))
         (is (= @b [3 4 5]))
         (done))))
 
 (deftest ^:async test-buffer-smallest
   (let [s (r/events)
         b (r/buffer 1 s)]
-    (go (<! (push!! s 2 3 4 5))
+    (go (<! (deliver! s 2 3 4 5))
         (is (= @b [5]))
         (done))))
 
 (deftest ^:async test-uniq
   (let [s (r/events)
         e (r/reduce + 0 (r/uniq s))]
-    (go (<! (push!! s 1 1))
+    (go (<! (deliver! s 1 1))
         (is (= 1 @e))
-        (<! (push!! s 1 2))
+        (<! (deliver! s 1 2))
         (is (= 3 @e))
         (done))))
 
@@ -343,9 +343,9 @@
   (let [e (r/events)
         c (r/count e)]
     (go (is (= @c 0))
-        (<! (push!! e 1))
+        (<! (deliver! e 1))
         (is (= @c 1))
-        (<! (push!! e 2 3))
+        (<! (deliver! e 2 3))
         (is (= @c 3))
         (done))))
 
@@ -354,9 +354,9 @@
         e (r/cycle [:on :off] s)]
     (go (<! (timeout 20))
         (is (= :on @e))
-        (<! (push!! s 1))
+        (<! (deliver! s 1))
         (is (= :off @e))
-        (<! (push!! s 1))
+        (<! (deliver! s 1))
         (is (= :on @e))
         (done))))
 
@@ -364,7 +364,7 @@
   (let [s (r/events)
         e (r/constantly 1 s)
         a (r/reduce + 0 e)]
-    (go (<! (push!! s 2 4 5))
+    (go (<! (deliver! s 2 4 5))
         (is (= @e 1))
         (is (= @a 3))
         (done))))
@@ -372,13 +372,13 @@
 (deftest ^:async test-throttle
   (let [s (r/events)
         e (r/throttle 100 s)]
-    (go (r/push! s 1 2)
+    (go (r/deliver s 1 2)
         (<! (timeout 20))
         (is (= @e 1))
         (<! (timeout 101))
-        (r/push! s 3)
+        (r/deliver s 3)
         (<! (timeout 50))
-        (r/push! s 4)
+        (r/deliver s 4)
         (is (= @e 3))
         (done))))
 
@@ -411,10 +411,10 @@
   (let [a (atom nil)
         s (r/events)
         e (r/map #(reset! a %) s)]
-    (go (<! (push!! s 1))
+    (go (<! (deliver! s 1))
         (is (= @a 1))
         (r/dispose e)
-        (<! (push!! s 2))
+        (<! (deliver! s 2))
         (is (= @a 1))
         (done))))
 
@@ -431,11 +431,11 @@
   (let [e1 (r/events)
         e2 (r/events)
         j  (r/join e1 e2)]
-    (go (<! (push!! e1 1))
+    (go (<! (deliver! e1 1))
         (is (= @j 1))
-        (<! (push!! e1 (r/completed 2)))
+        (<! (deliver! e1 (r/completed 2)))
         (is (= @j 2))
-        (<! (push!! e2 3))
+        (<! (deliver! e2 3))
         (is (= @j 3))
         (done))))
 
@@ -444,11 +444,11 @@
         e2 (r/events)
         j  (r/join e1 e2)
         s  (r/reduce + j)]
-    (go (<! (push!! e1 1))
-        (<! (push!! e2 3))
+    (go (<! (deliver! e1 1))
+        (<! (deliver! e2 3))
         (is (= @j 1))
         (is (= @s 1))
-        (<! (push!! e1 (r/completed 2)))
+        (<! (deliver! e1 (r/completed 2)))
         (is (= @j 3))
         (is (= @s 6))
         (done))))
@@ -457,8 +457,8 @@
   (let [e1 (r/events)
         e2 (r/events)
         j  (r/join e1 e2)]
-    (go (<! (push!! e1 (r/completed 1)))
-        (<! (push!! e2 (r/completed 2)))
+    (go (<! (deliver! e1 (r/completed 1)))
+        (<! (deliver! e2 (r/completed 2)))
         (is (= @j 2))
         (is (r/complete? j))
         (done))))
@@ -476,14 +476,14 @@
         f  (r/flatten es)
         e1 (r/events)
         e2 (r/events)]
-    (go (<! (push!! es e1))
-        (<! (push!! e1 1))
+    (go (<! (deliver! es e1))
+        (<! (deliver! e1 1))
         (is (realized? f))
         (is (= @f 1))
-        (<! (push!! es e2))
-        (<! (push!! e2 2))
+        (<! (deliver! es e2))
+        (<! (deliver! e2 2))
         (is (= @f 2))
-        (<! (push!! e1 3))
+        (<! (deliver! e1 3))
         (is (= @f 3))
         (done))))
 
@@ -491,12 +491,12 @@
   (let [es (r/events)
         f  (r/flatten es)
         e  (r/events)]
-    (go (<! (push!! es (r/completed e)))
-        (<! (push!! e 1))
+    (go (<! (deliver! es (r/completed e)))
+        (<! (deliver! e 1))
         (is (r/complete? es))
         (is (not (r/complete? e)))
         (is (not (r/complete? f)))
-        (<! (push!! e (r/completed 2)))
+        (<! (deliver! e (r/completed 2)))
         (is (r/complete? e))
         (is (r/complete? f))
         (done))))
