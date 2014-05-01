@@ -13,7 +13,7 @@ values that change over time.
 
 Add the following dependency to your `project.clj` file:
 
-    [reagi "0.9.1"]
+    [reagi "0.10.0"]
 
 ## Overview
 
