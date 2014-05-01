@@ -100,7 +100,10 @@
     accept before the next item is distributed.")
   (listen [ob ch]
     "Add a listener channel to the observable. The channel will be closed
-    when the port of the observable is closed. Returns the channel."))
+    when the port of the observable is closed. Returns the channel.
+
+    Any events sent to the channel will be boxed to protect the channel from
+    nils. To listen for unboxed events, use subscribe."))
 
 (defn- mult*
   "A version of clojure.core.async/mult that fixes ASYNC-64.
@@ -270,11 +273,15 @@
      (doseq [m (cons msg msgs)]
        (stream m))))
 
-(defn sink!
-  "Deliver events on an event stream to a core.async channel. The events cannot
-  include a nil value."
+(defn subscribe
+  "Deliver events on an event stream to a core.async channel. Returns the
+  channel.
+
+  The events from the stream cannot include nil. The channel will be closed when
+  the event stream is complete."
   [stream channel]
-  (listen stream (a/map> unbox channel)))
+  (listen stream (a/map> unbox channel))
+  channel)
 
 (defn- close-all! [chs]
   (doseq [ch chs]

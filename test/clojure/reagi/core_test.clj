@@ -142,17 +142,17 @@
       (is (= (deref! e) 1))
       (is (r/complete? e)))))
 
-(deftest test-sink!
+(deftest test-subscribe
   (testing "values"
     (let [e  (r/events)
           ch (chan 1)]
-      (r/sink! e ch)
+      (r/subscribe e ch)
       (r/deliver e :foo)
       (is (= (<!! ch) :foo))))
   (testing "closing"
     (let [e  (r/events)
           ch (chan)]
-      (r/sink! e ch)
+      (r/subscribe e ch)
       (Thread/sleep 40)
       (close! (r/port e))
       (is (nil? (<!! ch))))))

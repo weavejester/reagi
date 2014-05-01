@@ -155,10 +155,10 @@
         (is (r/complete? e))
         (done))))
 
-(deftest ^:async test-sink!
+(deftest ^:async test-subscribe
   (let [e  (r/events)
         ch (chan 1)]
-    (r/sink! e ch)
+    (r/subscribe e ch)
     (go (r/deliver e :foo)
         (is (= (<! ch) :foo))
         (done))))
@@ -166,7 +166,7 @@
 (deftest ^:async test-sink-close
   (let [e  (r/events)
         ch (chan)]
-    (go (r/sink! e ch)
+    (go (r/subscribe e ch)
         (<! (timeout 40))
         (close! (r/port e))
         (is (nil? (<! ch)))
