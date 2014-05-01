@@ -352,19 +352,19 @@
     (is (= (deref! e) 3))))
 
 (deftest test-gc
-  (testing "Derived maps"
+  (testing "derived maps"
     (let [s (r/events)
           e (r/map inc (r/map inc s))]
       (System/gc)
       (push!! s 1)
       (is (= (deref! e) 3))))
-  (testing "Merge"
+  (testing "merge"
     (let [s (r/events)
           e (r/merge (r/map inc s))]
       (System/gc)
       (push!! s 1)
       (is (= (deref! e) 2))))
-  (testing "Zip"
+  (testing "zip"
     (let [s (r/events)
           e (r/zip (r/map inc s) (r/map dec s))]
       (System/gc)
@@ -380,7 +380,7 @@
       (is (nil? @a)))))
 
 (deftest test-sample
-  (testing "Basic sample"
+  (testing "basic usage"
     (let [a (atom 0)
           s (r/sample 100 a)]
       (is (= (deref! s) 0))
@@ -388,7 +388,7 @@
       (is (= (deref! s) 0))
       (Thread/sleep 120)
       (is (= (deref! s) 1))))
-  (testing "Thread ends if stream GCed"
+  (testing "thread ends if stream GCed"
     (let [a (atom false)]
       (r/sample 100 (r/behavior (reset! a true)))
       (System/gc)
@@ -396,7 +396,7 @@
       (reset! a false)
       (Thread/sleep 120)
       (is (= @a false))))
-  (testing "Thread continues if stream not GCed"
+  (testing "thread continues if stream not GCed"
     (let [a (atom false)
           s (r/sample 100 (r/behavior (reset! a true)))]
       (System/gc)
