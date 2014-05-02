@@ -359,7 +359,7 @@
   (mapcat #(if (pred %) (list %)) stream))
 
 (defn remove
-  "Remove all items in a stream the predicate does not match."
+  "Remove all items in a stream the predicate matches."
   [pred stream]
   (filter (complement pred) stream))
 
