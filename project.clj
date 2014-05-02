@@ -25,7 +25,10 @@
              :compiler {:output-to "target/main.js"}}]}
   :profiles
   {:dev  {:plugins [[com.cemerick/austin "0.1.4"]]
-          :dependencies [[criterium "0.4.2"]]}
+          :dependencies [[criterium "0.4.2"]]
+          :repl-options {:init (require '[reagi.core :as r]
+                                        '[clojure.core.async
+                                          :as a :refer [go go-loop <! >! <!! >!!]])}}
    :test {:plugins [[com.cemerick/clojurescript.test "0.3.0"]]
           :cljsbuild
           {:builds ^:replace [{:source-paths ["target/classes" "test/cljs"]
