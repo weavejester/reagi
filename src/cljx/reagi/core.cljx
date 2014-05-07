@@ -214,7 +214,7 @@
   (complete? [_] (or @closed (instance? Completed @head)))
 
   Disposable
-  (dispose [_] (doseq [d @disposers] (d)))
+  (dispose [_] (doseq [d @disposers] (d)) (a/close! ch))
   (on-dispose [_ d] (swap! disposers conj d))
 
   #+clj Object
