@@ -1,7 +1,7 @@
 (ns reagi.core-test
   (:require [clojure.test :refer :all]
             [reagi.core :as r]
-            [clojure.core.async :refer (chan >!! <!! close!)]))
+            [clojure.core.async :refer (chan >!! <!! close! pipe thread)]))
 
 (deftest test-signal?
   (is (r/signal? (r/behavior 1)))
@@ -362,6 +362,19 @@
       (System/gc)
       (deliver! s 1)
       (is (= (deref! e) [2 0]))))
+  (testing "flatten"
+    (let [s (r/events)
+          f (r/flatten s)
+          a (atom 1)]
+      (deliver! s (r/sample 100 a))
+      (deliver! s (r/once 0))
+      (Thread/sleep 120)
+      (is (= (deref! f) 1))
+      (System/gc)
+      (Thread/sleep 100)
+      (reset! a 2)
+      (Thread/sleep 120)
+      (is (= (deref! f) 2))))
   (testing "GC unreferenced streams"
     (let [a (atom nil)
           s (r/events)]

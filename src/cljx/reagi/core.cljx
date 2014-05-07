@@ -512,17 +512,18 @@
       (depend-on streams))))
 
 (defn- flatten-ch [in valve out]
-  (go (loop [chs #{in}]
+  (go (loop [chs {in nil}]
         (if-not (empty? chs)
-          (let [[msg port] (a/alts! (conj (vec chs) valve))]
+          (let [[msg port] (a/alts! (conj (vec (keys chs)) valve))]
             (if (identical? port valve)
-              (close-all! chs)
+              (close-all! (keys chs))
               (if msg
                 (if (identical? port in)
-                  (recur (conj chs (listen (unbox msg) (a/chan))))
+                  (let [stream (unbox msg)]
+                    (recur (assoc chs (listen stream (a/chan)) stream)))
                   (do (>! out (box (unbox msg)))
                       (recur chs)))
-                (recur (disj chs port)))))))
+                (recur (dissoc chs port)))))))
       (a/close! out)))
 
 (defn flatten
