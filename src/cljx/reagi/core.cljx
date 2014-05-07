@@ -282,6 +282,7 @@
   the event stream is complete."
   [stream channel]
   (listen stream (a/map> unbox channel))
+  (depend-on channel [stream])
   channel)
 
 (defn- close-all! [chs]
